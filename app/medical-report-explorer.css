@@ -1,0 +1,588 @@
+/* SehatSetu Medical Report Explorer Stylesheet */
+
+.sehatsetu-panel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 440px;
+  max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 84px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 16px 40px -10px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.85);
+  color: #1e293b;
+  z-index: 45;
+  overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .sehatsetu-panel {
+    top: auto;
+    bottom: 74px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 70vh;
+  }
+}
+
+.sehatsetu-header {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.sehatsetu-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sehatsetu-badge {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sehatsetu-header-title h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.sehatsetu-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sehatsetu-lang-select {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.sehatsetu-lang-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.sehatsetu-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(241, 245, 249, 0.6);
+  padding: 4px;
+  gap: 4px;
+}
+
+.sehatsetu-tab-btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.sehatsetu-tab-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.sehatsetu-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+/* Upload Dropzone */
+.sehatsetu-dropzone {
+  border: 2px dashed rgba(148, 163, 184, 0.7);
+  border-radius: 12px;
+  padding: 20px 14px;
+  text-align: center;
+  background: rgba(248, 250, 252, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sehatsetu-dropzone:hover,
+.sehatsetu-dropzone.dragging {
+  border-color: #2563eb;
+  background: rgba(239, 246, 255, 0.8);
+}
+
+.sehatsetu-dropzone-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sehatsetu-dropzone-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.sehatsetu-dropzone-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.sehatsetu-samples-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sehatsetu-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.sehatsetu-sample-chip {
+  text-align: left;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+}
+
+.sehatsetu-sample-chip:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* Progress bar */
+.sehatsetu-progress-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sehatsetu-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.sehatsetu-progress-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sehatsetu-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #0284c7);
+  transition: width 0.3s ease;
+}
+
+/* Active Report Bar */
+.sehatsetu-active-report-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(239, 246, 255, 0.8);
+  border: 1px solid rgba(191, 219, 254, 0.8);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.sehatsetu-report-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Viewport Controls Bar */
+.sehatsetu-viewer-toolbar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.sehatsetu-toolbar-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.sehatsetu-toolbar-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.sehatsetu-toolbar-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* Finding Cards */
+.sehatsetu-findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sehatsetu-finding-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sehatsetu-finding-card:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+}
+
+.sehatsetu-finding-card.active-target {
+  border-color: #2563eb;
+  background: #f8faff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.sehatsetu-finding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sehatsetu-finding-term {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: capitalize;
+}
+
+.sehatsetu-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.sehatsetu-status-badge.confirmed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.sehatsetu-status-badge.ruled_out {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.sehatsetu-status-badge.suspected {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sehatsetu-finding-explanation {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.sehatsetu-finding-evidence {
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border-left: 3px solid #cbd5e1;
+  font-style: italic;
+}
+
+.sehatsetu-targets-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sehatsetu-organ-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sehatsetu-organ-pill.verified {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.sehatsetu-organ-pill.condition_associated {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.sehatsetu-organ-pill.unresolved {
+  background: #fff1f2;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+}
+
+.sehatsetu-finding-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.sehatsetu-focus-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sehatsetu-focus-btn:hover {
+  background: #1d4ed8;
+}
+
+/* Chat Assistant Panel */
+.sehatsetu-chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sehatsetu-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 88%;
+}
+
+.sehatsetu-chat-msg.user {
+  align-self: flex-end;
+}
+
+.sehatsetu-chat-msg.assistant {
+  align-self: flex-start;
+}
+
+.sehatsetu-msg-bubble {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.sehatsetu-chat-msg.user .sehatsetu-msg-bubble {
+  background: #2563eb;
+  color: #ffffff;
+  border-bottom-right-radius: 2px;
+}
+
+.sehatsetu-chat-msg.assistant .sehatsetu-msg-bubble {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-bottom-left-radius: 2px;
+}
+
+.sehatsetu-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sehatsetu-audio-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.sehatsetu-audio-btn:hover {
+  color: #2563eb;
+}
+
+.sehatsetu-chat-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sehatsetu-chat-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 12px;
+  outline: none;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.sehatsetu-chat-input:focus {
+  border-color: #2563eb;
+}
+
+.sehatsetu-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sehatsetu-icon-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sehatsetu-icon-btn.listening {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #f87171;
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.sehatsetu-send-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.sehatsetu-send-btn:hover {
+  background: #1d4ed8;
+}
+
+/* Educational Disclaimer Banner */
+.sehatsetu-disclaimer {
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #64748b;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
