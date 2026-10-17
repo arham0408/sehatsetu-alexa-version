@@ -58,12 +58,66 @@ Return a JSON object with this exact structure:
 class MedicalAIProvider:
     def __init__(self):
         self.api_key = os.getenv("GROQ_API_KEY", "").strip()
-        self.model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+        self.model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
         self.base_url = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-        self.timeout = float(os.getenv("PROVIDER_TIMEOUT_SECONDS", "25.0"))
+        self.timeout = float(os.getenv("PROVIDER_TIMEOUT_SECONDS", "35.0"))
+        self._discovered_model: Optional[str] = None
 
     def is_configured(self) -> bool:
         return bool(self.api_key and len(self.api_key) > 5 and not self.api_key.startswith("your_"))
+
+    async def _resolve_working_model(self, client: httpx.AsyncClient) -> str:
+        """
+        Dynamically discovers an active chat model from Groq if the configured model is unavailable.
+        """
+        if self._discovered_model:
+            return self._discovered_model
+
+        preferred_models = [
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.8-27b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile",
+            "llama3-70b-8192",
+            "openai/gpt-oss-20b",
+        ]
+
+        try:
+            res = await client.get(
+                f"{self.base_url}/models",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            if res.status_code == 200:
+                available = [m["id"] for m in res.json().get("data", [])]
+                for candidate in preferred_models:
+                    if candidate in available:
+                        logger.info("Auto-discovered active Groq model: %s", candidate)
+                        self._discovered_model = candidate
+                        self.model = candidate
+                        return candidate
+
+                # Fallback to any non-whisper model
+                chat_models = [m for m in available if "whisper" not in m and "guard" not in m]
+                if chat_models:
+                    self._discovered_model = chat_models[0]
+                    self.model = chat_models[0]
+                    return chat_models[0]
+        except Exception as e:
+            logger.warning("Could not auto-discover Groq models: %s", str(e))
+
+        return self.model
+
+    @staticmethod
+    def _clean_json_str(content: str) -> str:
+        content = content.strip()
+        if content.startswith("```"):
+            lines = content.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            content = "\n".join(lines).strip()
+        return content
 
     async def extract_findings(self, report_text: str, language: str = "en") -> Dict[str, Any]:
         """
@@ -85,6 +139,8 @@ Extract all anatomical and pathological findings from this medical report:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                model_to_use = self.model
+                # Try primary request
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers={
@@ -92,7 +148,7 @@ Extract all anatomical and pathological findings from this medical report:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": self.model,
+                        "model": model_to_use,
                         "messages": [
                             {"role": "system", "content": SYSTEM_EXTRACTION_PROMPT},
                             {"role": "user", "content": prompt},
@@ -102,20 +158,50 @@ Extract all anatomical and pathological findings from this medical report:
                     },
                 )
 
+                # If 404 model not found, discover working model and retry once
+                if response.status_code == 404:
+                    discovered = await self._resolve_working_model(client)
+                    if discovered != model_to_use:
+                        response = await client.post(
+                            f"{self.base_url}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {self.api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": discovered,
+                                "messages": [
+                                    {"role": "system", "content": SYSTEM_EXTRACTION_PROMPT},
+                                    {"role": "user", "content": prompt},
+                                ],
+                                "temperature": 0.1,
+                                "response_format": {"type": "json_object"},
+                            },
+                        )
+
                 if response.status_code == 200:
                     data = response.json()
                     content = data["choices"][0]["message"]["content"]
-                    parsed = json.loads(content)
+                    cleaned = self._clean_json_str(content)
+                    parsed = json.loads(cleaned)
                     return parsed
                 else:
-                    logger.warning("Groq API returned error status %d. Falling back to deterministic pipeline.", response.status_code)
+                    logger.warning("Groq API returned error status %d: %s. Falling back to deterministic pipeline.", response.status_code, response.text[:200])
                     return self._extract_findings_deterministic(report_text, language)
 
         except Exception as e:
             logger.warning("Exception during Groq extraction: %s. Falling back to deterministic pipeline.", str(e))
             return self._extract_findings_deterministic(report_text, language)
 
-    async def answer_chat(self, question: str, report_context: str, language: str, history: List[Dict[str, str]]) -> ChatResponse:
+    async def answer_chat(
+        self,
+        question: str,
+        report_context: str,
+        language: str,
+        history: List[Dict[str, str]],
+        selected_organ: Optional[str] = None,
+        current_finding: Optional[str] = None,
+    ) -> ChatResponse:
         """
         Answers conversational questions about the medical report and anatomy.
         """
@@ -124,7 +210,7 @@ Extract all anatomical and pathological findings from this medical report:
 
         chat_system_prompt = f"""You are SehatSetu AI, an empathetic, clear medical report companion explaining medical concepts in {language}.
 Rules:
-1. Explain medical terms simply and accessibly.
+1. Explain medical terms simply and accessibly in {language}.
 2. If the user asks about an organ or body part (e.g. gallbladder, liver, lung, heart, brain, kidney), mention its canonical name in 'mentioned_terms' and set 'navigation_intent': true.
 3. Distinguish what the report explicitly states from general educational information.
 4. Never claim to diagnose the patient or change prescriptions. Recommend consulting their treating clinician for personal medical decisions.
@@ -141,13 +227,22 @@ Rules:
         if report_context:
             messages.append({"role": "system", "content": f"Context of active medical report:\n{report_context[:4000]}"})
 
-        for msg in history[-4:]:
+        if selected_organ:
+            organ_info = f"The patient is currently inspecting this 3D anatomical organ: {selected_organ}."
+            if current_finding:
+                organ_info += f" Associated clinical finding in report: {current_finding}."
+            else:
+                organ_info += " (This organ has no abnormal findings noted in the current report, or is shown for anatomical context)."
+            messages.append({"role": "system", "content": organ_info})
+
+        for msg in history[-6:]:
             messages.append({"role": msg.get("sender", "user"), "content": msg.get("text", "")})
 
         messages.append({"role": "user", "content": question})
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                model_to_use = self.model
                 response = await client.post(
                     f"{self.base_url}/chat/completions",
                     headers={
@@ -155,23 +250,49 @@ Rules:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": self.model,
+                        "model": model_to_use,
                         "messages": messages,
                         "temperature": 0.2,
                         "response_format": {"type": "json_object"},
                     },
                 )
 
+                if response.status_code == 404:
+                    discovered = await self._resolve_working_model(client)
+                    if discovered != model_to_use:
+                        response = await client.post(
+                            f"{self.base_url}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {self.api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            json={
+                                "model": discovered,
+                                "messages": messages,
+                                "temperature": 0.2,
+                                "response_format": {"type": "json_object"},
+                            },
+                        )
+
                 if response.status_code == 200:
                     data = response.json()
                     content = data["choices"][0]["message"]["content"]
-                    parsed = json.loads(content)
-                    return ChatResponse(
-                        answer=parsed.get("answer", "Here is information based on your report."),
-                        mentioned_terms=parsed.get("mentioned_terms", []),
-                        navigation_intent=parsed.get("navigation_intent", False),
-                        warnings=parsed.get("warnings", []),
-                    )
+                    cleaned = self._clean_json_str(content)
+                    try:
+                        parsed = json.loads(cleaned)
+                        return ChatResponse(
+                            answer=parsed.get("answer", cleaned),
+                            mentioned_terms=parsed.get("mentioned_terms", [selected_organ] if selected_organ else []),
+                            navigation_intent=parsed.get("navigation_intent", bool(selected_organ)),
+                            warnings=parsed.get("warnings", []),
+                        )
+                    except Exception:
+                        return ChatResponse(
+                            answer=cleaned,
+                            mentioned_terms=[selected_organ] if selected_organ else [],
+                            navigation_intent=bool(selected_organ),
+                            warnings=[],
+                        )
         except Exception as e:
             logger.warning("Exception during Groq chat: %s. Using local fallback.", str(e))
 

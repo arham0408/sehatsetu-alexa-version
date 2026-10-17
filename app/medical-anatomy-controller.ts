@@ -98,6 +98,7 @@ export class MedicalAnatomyController {
 
     return {
       isolate: mode === "isolate",
+      selected: currentState.selected.length ? currentState.selected : [...this.activeTargetIds],
       focus: (currentState.focus ?? 0) + 1,
       rotate: false,
     };

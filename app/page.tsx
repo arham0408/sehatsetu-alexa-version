@@ -367,10 +367,12 @@ export default function Home() {
       selected: concept.elements,
       isolate: false,
       rotate: false,
-      focus: 0,
+      focus: (current.focus ?? 0) + 1,
       focusContext: false,
     }));
-    setDetails(true);
+    if (!sehatSetuOpen) {
+      setDetails(true);
+    }
     setPanel(null);
   };
   useEffect(() => {

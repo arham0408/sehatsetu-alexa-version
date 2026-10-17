@@ -220,22 +220,10 @@ export async function analyzeReport(
   onProgress?.(20, "Extracting report text...");
 
   let reportText = content.text || "";
-  let pageCount = 1;
-
-  // If a PDF file was uploaded, try to extract text
-  if (content.file && !reportText) {
-    onProgress?.(35, "Reading PDF document...");
-    try {
-      reportText = await extractTextFromPdfFile(content.file);
-      onProgress?.(55, "Text extracted from PDF.");
-    } catch {
-      reportText = "";
-    }
-  }
-
-  onProgress?.(60, "Contacting SehatSetu analysis pipeline...");
+  const pageCount = 1;
 
   // Try backend endpoint first
+  onProgress?.(45, "Contacting SehatSetu AI analysis pipeline...");
   try {
     const formData = new FormData();
     if (content.file) {
@@ -247,7 +235,7 @@ export async function analyzeReport(
     formData.append("language", language);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     const response = await fetch("/api/reports/analyze", {
       method: "POST",
@@ -266,9 +254,30 @@ export async function analyzeReport(
         ...data,
         findings: enriched,
       };
+    } else {
+      const errData = await response.json().catch(() => null);
+      if (errData?.detail) {
+        throw new Error(errData.detail);
+      }
     }
-  } catch {
-    /* Backend not reachable or timeout — fallback gracefully to local mode */
+  } catch (backendErr) {
+    if (backendErr instanceof Error && backendErr.message && !backendErr.name.includes("Abort")) {
+      // Propagate explicit validation errors (e.g. invalid file, encrypted PDF)
+      if (backendErr.message.includes("PDF") || backendErr.message.includes("empty") || backendErr.message.includes("insufficient")) {
+        throw backendErr;
+      }
+    }
+    // Network / offline fallback below
+  }
+
+  // If a PDF file was uploaded and backend was completely unreachable, try local fallback
+  if (content.file && !reportText) {
+    onProgress?.(55, "Reading PDF document offline...");
+    try {
+      reportText = await extractTextFromPdfFile(content.file);
+    } catch {
+      reportText = "";
+    }
   }
 
   // Fallback: Local deterministic analysis
@@ -341,11 +350,14 @@ export async function sendChatMessage(
   atlas: Atlas,
   language: IndianLanguageCode,
   history: ChatMessage[],
+  selectedOrgan?: string | null,
+  currentFinding?: string | null,
+  sessionId?: string,
 ): Promise<ChatMessage> {
   // Try backend first
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 35000);
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -358,6 +370,9 @@ export async function sendChatMessage(
           sender: m.sender,
           text: m.text,
         })),
+        selected_organ: selectedOrgan || undefined,
+        current_finding: currentFinding || undefined,
+        session_id: sessionId || undefined,
       }),
       signal: controller.signal,
     });

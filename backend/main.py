@@ -10,6 +10,9 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+backend_env = os.path.join(backend_dir, ".env")
+if os.path.exists(backend_env):
+    load_dotenv(backend_env)
 load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
@@ -203,4 +206,6 @@ async def chat_endpoint(request: ChatRequest):
         report_context=request.report_context or "",
         language=request.language or "en",
         history=history_dicts,
+        selected_organ=request.selected_organ,
+        current_finding=request.current_finding,
     )

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type ChangeEvent, type FormEvent } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ChangeEvent, type FormEvent } from "react";
 import {
   FileText,
   Upload,
@@ -50,6 +50,7 @@ export default function MedicalReportExplorer({
   onUpdateSceneState,
   onClose,
 }: Props) {
+  const [sessionId, setSessionId] = useState<string>(() => `sess-${Date.now()}`);
   const [language, setLanguage] = useState<IndianLanguageCode>("en");
   const [activeTab, setActiveTab] = useState<"findings" | "chat" | "upload">("upload");
   const [reportState, setReportState] = useState<ReportAnalysisState>({ status: "idle" });
@@ -95,8 +96,53 @@ export default function MedicalReportExplorer({
     }
   }, [chatMessages]);
 
+  // Synchronize 3D scene selection with medical findings
+  useEffect(() => {
+    if (!sceneState.selected || sceneState.selected.length === 0) return;
+    if (!reportState.result) return;
+
+    const selectedSet = new Set(sceneState.selected);
+    const matching = reportState.result.findings.find((f) =>
+      f.verifiedTargets.some((target) => target.partIds.some((pid) => selectedSet.has(pid))),
+    );
+
+    if (matching) {
+      setActiveFindingId(matching.findingId);
+    }
+  }, [sceneState.selected, reportState.result]);
+
+  // Derive organ information for currently selected 3D piece
+  const selectedOrganContext = useMemo(() => {
+    if (!sceneState.selected || sceneState.selected.length === 0) return null;
+    const firstPartId = sceneState.selected[0];
+    const part = atlas.parts.find((p) => p.id === firstPartId);
+    if (!part) return null;
+
+    const matchingFinding = reportState.result?.findings.find((f) =>
+      f.verifiedTargets.some((t) => t.partIds.includes(firstPartId)),
+    );
+
+    return {
+      partId: firstPartId,
+      partName: part.name,
+      system: part.system,
+      finding: matchingFinding || null,
+    };
+  }, [sceneState.selected, atlas.parts, reportState.result]);
+
   const processReport = useCallback(
     async (content: { file?: File; text?: string; filename: string }) => {
+      // Cleanly isolate this session: stop speech, clear previous chat and findings
+      const newSessionId = `sess-${Date.now()}`;
+      setSessionId(newSessionId);
+      audioCtrl.current.stopSpeaking();
+      audioCtrl.current.stopListening();
+      setIsListening(false);
+      setIsSpeaking(false);
+      setActiveSpeechId(null);
+      setActiveFindingId(null);
+      setChatMessages([]);
+
       anatomyCtrl.current.captureBaseline(sceneState);
       setReportState({
         status: "extracting",
@@ -233,6 +279,9 @@ export default function MedicalReportExplorer({
       atlas,
       language,
       chatMessages,
+      selectedOrganContext?.partName || null,
+      selectedOrganContext?.finding?.term || null,
+      sessionId,
     );
 
     setChatMessages((prev) => [...prev, assistantMsg]);
@@ -326,7 +375,14 @@ export default function MedicalReportExplorer({
           <select
             className="sehatsetu-lang-select"
             value={language}
-            onChange={(e) => setLanguage(e.target.value as IndianLanguageCode)}
+            onChange={(e) => {
+              audioCtrl.current.stopSpeaking();
+              audioCtrl.current.stopListening();
+              setIsSpeaking(false);
+              setIsListening(false);
+              setActiveSpeechId(null);
+              setLanguage(e.target.value as IndianLanguageCode);
+            }}
             aria-label="Select report language"
           >
             {SUPPORTED_LANGUAGES.map((lang) => (
@@ -476,6 +532,29 @@ export default function MedicalReportExplorer({
               </div>
             ) : (
               <div className="sehatsetu-findings-list">
+                {selectedOrganContext && !selectedOrganContext.finding && (
+                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between mb-1">
+                    <div>
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-amber-600" />
+                        <span>3D Selected: {selectedOrganContext.partName}</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 m-0 mt-0.5">
+                        Reference anatomical structure. No abnormal findings noted for this organ in the report.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="sehatsetu-focus-btn text-[11px] py-1 px-2.5 ml-2 shrink-0"
+                      onClick={() => {
+                        setActiveTab("chat");
+                        void handleSendMessage(`Explain what the ${selectedOrganContext.partName} does and whether it is normal in my report`);
+                      }}
+                    >
+                      Ask AI
+                    </button>
+                  </div>
+                )}
                 {reportState.result.findings.map((f) => (
                   <article
                     key={f.findingId}
@@ -591,6 +670,32 @@ export default function MedicalReportExplorer({
                 ))
               )}
             </div>
+
+            {/* Active Organ Context Banner */}
+            {selectedOrganContext && (
+              <div className="sehatsetu-organ-context-banner">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles size={13} className="text-amber-600 shrink-0" />
+                  <span className="truncate">
+                    Inspecting: <strong>{selectedOrganContext.partName}</strong>
+                    {selectedOrganContext.finding ? ` (${selectedOrganContext.finding.term})` : " (Reference Anatomy)"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="sehatsetu-context-pill-btn"
+                  onClick={() =>
+                    void handleSendMessage(
+                      selectedOrganContext.finding
+                        ? `Tell me more about the ${selectedOrganContext.finding.term} in my ${selectedOrganContext.partName}`
+                        : `Explain the role of the ${selectedOrganContext.partName} and verify if anything abnormal was found in my report`,
+                    )
+                  }
+                >
+                  Ask AI
+                </button>
+              </div>
+            )}
 
             {/* Input Bar */}
             <div className="sehatsetu-chat-input-bar">

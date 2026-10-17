@@ -38,6 +38,31 @@ export class MedicalAudioController {
   private isListening = false;
   private isSpeaking = false;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
+  private cachedVoices: SpeechSynthesisVoice[] = [];
+  private speechKeepAlive: ReturnType<typeof setInterval> | null = null;
+
+  constructor() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      this.refreshVoices();
+      try {
+        window.speechSynthesis.onvoiceschanged = () => {
+          this.refreshVoices();
+        };
+      } catch {
+        /* Ignore */
+      }
+    }
+  }
+
+  private refreshVoices(): SpeechSynthesisVoice[] {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const v = window.speechSynthesis.getVoices();
+      if (v && v.length > 0) {
+        this.cachedVoices = v;
+      }
+    }
+    return this.cachedVoices;
+  }
 
   public isSpeechRecognitionSupported(): boolean {
     if (typeof window === "undefined") return false;
@@ -90,6 +115,8 @@ export class MedicalAudioController {
       const langOption = SUPPORTED_LANGUAGES.find((l) => l.code === lang);
       rec.lang = langOption?.speechTag || "en-IN";
 
+      let finalEmitted = false;
+
       rec.onstart = () => {
         this.isListening = true;
       };
@@ -107,17 +134,26 @@ export class MedicalAudioController {
           }
         }
 
-        if (interimText) {
+        if (interimText && !finalEmitted) {
           callbacks.onInterimResult(interimText);
         }
-        if (finalText) {
-          callbacks.onFinalResult(finalText);
+        if (finalText && !finalEmitted) {
+          finalEmitted = true;
+          this.isListening = false;
+          try {
+            rec.stop();
+          } catch {
+            /* Ignore */
+          }
+          callbacks.onFinalResult(finalText.trim());
         }
       };
 
       rec.onerror = (event: SpeechRecognitionErrorEventLike) => {
         this.isListening = false;
-        callbacks.onError(event.error || "recognition_error");
+        if (event.error !== "no-speech") {
+          callbacks.onError(event.error || "recognition_error");
+        }
       };
 
       rec.onend = () => {
@@ -171,9 +207,16 @@ export class MedicalAudioController {
       .replace(/\s+/g, " ")
       .trim();
 
-    if (!clean) return;
+    if (!clean) {
+      callbacks?.onEnd?.();
+      return;
+    }
 
     try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
       const utterance = new SpeechSynthesisUtterance(clean);
       this.currentUtterance = utterance;
 
@@ -182,14 +225,28 @@ export class MedicalAudioController {
       utterance.lang = tag;
       utterance.rate = 0.95;
 
-      // Try finding the best matched voice
-      const voices = window.speechSynthesis.getVoices();
-      const prefix = tag.split("-")[0];
-      const match =
-        voices.find((v) => v.lang.toLowerCase() === tag.toLowerCase()) ||
-        voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
-      if (match) {
-        utterance.voice = match;
+      const voices = this.refreshVoices();
+      const prefix = tag.split("-")[0].toLowerCase();
+
+      // Best match strategy:
+      // 1. Exact locale match (e.g. hi-IN)
+      // 2. Language prefix match (e.g. hi)
+      // 3. Indian English match (e.g. en-IN or name containing India)
+      // 4. Default / system English voice
+      const exactMatch = voices.find((v) => v.lang.toLowerCase() === tag.toLowerCase());
+      const prefixMatch = voices.find((v) => v.lang.toLowerCase().startsWith(prefix));
+      const indianEnglish = voices.find(
+        (v) =>
+          v.lang.toLowerCase() === "en-in" ||
+          v.name.toLowerCase().includes("india") ||
+          v.name.toLowerCase().includes("ravi") ||
+          v.name.toLowerCase().includes("heera"),
+      );
+      const generalEnglish = voices.find((v) => v.lang.toLowerCase().startsWith("en"));
+
+      const matchedVoice = exactMatch || prefixMatch || indianEnglish || generalEnglish || voices[0];
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
       }
 
       utterance.onstart = () => {
@@ -197,26 +254,45 @@ export class MedicalAudioController {
         callbacks?.onStart?.();
       };
 
-      utterance.onend = () => {
+      const cleanup = () => {
         this.isSpeaking = false;
         this.currentUtterance = null;
+        if (this.speechKeepAlive) {
+          clearInterval(this.speechKeepAlive);
+          this.speechKeepAlive = null;
+        }
+      };
+
+      utterance.onend = () => {
+        cleanup();
         callbacks?.onEnd?.();
       };
 
       utterance.onerror = (e) => {
-        this.isSpeaking = false;
-        this.currentUtterance = null;
+        cleanup();
         callbacks?.onError?.(e);
       };
+
+      // Workaround Chrome 15s pause bug
+      this.speechKeepAlive = setInterval(() => {
+        if (this.isSpeaking && typeof window !== "undefined" && window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      }, 5000);
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       this.isSpeaking = false;
+      this.currentUtterance = null;
       callbacks?.onError?.(e);
     }
   }
 
   public stopSpeaking(): void {
+    if (this.speechKeepAlive) {
+      clearInterval(this.speechKeepAlive);
+      this.speechKeepAlive = null;
+    }
     if (this.isSpeechSynthesisSupported()) {
       try {
         window.speechSynthesis.cancel();

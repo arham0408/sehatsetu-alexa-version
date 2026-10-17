@@ -619,7 +619,7 @@ export default function AnatomyScene({
           data[i * 4 + 3] = shown ? 1 : 0;
           // Selection keeps pieces opaque; only surrounding views boost their color.
           selectedData[i * 4] = selected ? 255 : 0;
-          selectedData[i * 4 + 1] = selected && !s.isolate ? 255 : 0;
+          selectedData[i * 4 + 1] = selected ? 255 : 0;
           if (shown) {
             activeParts.push(i);
             if (p.system !== "integumentary") hasSolidParts = true;
@@ -842,25 +842,19 @@ export default function AnatomyScene({
       controls.mouseButtons.LEFT = amount < 0.8 ? T.MOUSE.ROTATE : T.MOUSE.PAN;
       controls.touches.ONE = amount < 0.8 ? T.TOUCH.ROTATE : T.TOUCH.PAN;
       markers.visible = amount > 0.75;
-      // Focused pieces must show through surrounding anatomy on the first Locate.
-      // Isolation only changes visibility; Locate uses the current exploded positions.
-      const highlightKey = ready && s.focus && !s.isolate ? selectedKey : "";
+      // Selected anatomy shows with warm yellow highlight and persists across normal, exploded, and isolated states.
+      const highlightKey = ready && s.selected.length > 0 ? selectedKey : "";
       if (highlightKey !== contextHighlightKey) {
-        // Picking keeps the CPU geometry, but past Locate selections no longer
-        // need their individual GPU buffers in addition to the merged batches.
-        contextHighlight.children.forEach((object) => {
-          if (object instanceof T.Mesh) object.geometry.dispose();
-        });
+        // Clear previous highlight objects without disposing pickers[i].geometry (which is shared)
         contextHighlight.clear();
         if (highlightKey)
           selectedIndices.forEach((i) => {
             if (!pickers[i]) return;
-            // Preserve normal lighting and self-occlusion, including between
-            // pieces of a selected structure. Shared geometry stays cached.
+            // Preserve normal lighting and self-occlusion with distinct yellow accent
             const system = atlas.parts[i].system;
             let material = contextHighlightMaterials.get(system);
             if (!material) {
-              material = createLocateMaterial(mats.get(system)!);
+              material = createLocateMaterial(mats.get(system)!, "#facc15");
               contextHighlightMaterials.set(system, material);
               materials.push(material);
             }

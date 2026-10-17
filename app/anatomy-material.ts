@@ -7,10 +7,19 @@ export function selectionHighlightColor(color: T.Color): T.Color {
   return new T.Color().setHSL(h, Math.min(1, s * 2), l * 0.75, T.SRGBColorSpace);
 }
 
-export function createLocateMaterial(source: T.MeshStandardMaterial): T.MeshStandardMaterial {
+export function createLocateMaterial(
+  source: T.MeshStandardMaterial,
+  highlightColor?: T.Color | string,
+): T.MeshStandardMaterial {
   // Standalone meshes use their object position instead of the batched vertex shader.
   const material = source.clone();
-  material.color.copy(selectionHighlightColor(source.color));
+  if (highlightColor) {
+    material.color = new T.Color(highlightColor);
+    material.emissive = new T.Color("#ca8a04");
+    material.emissiveIntensity = 0.35;
+  } else {
+    material.color.copy(selectionHighlightColor(source.color));
+  }
   material.opacity = 1;
   material.transparent = false;
   material.depthTest = true;

@@ -46,6 +46,9 @@ class ChatRequest(BaseModel):
     report_context: Optional[str] = ""
     language: str = "en"
     history: List[ChatMessageItem] = Field(default_factory=list)
+    selected_organ: Optional[str] = None
+    current_finding: Optional[str] = None
+    session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     answer: str
