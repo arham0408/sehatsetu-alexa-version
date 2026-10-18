@@ -552,15 +552,128 @@ function createUnavailableTarget(
 }
 
 /**
+ * Deduplicates findings so that each verified target organ is represented cleanly,
+ * prioritizing confirmed/abnormal findings and merging duplicate references.
+ */
+export function deduplicateFindingsByTarget(findings: MedicalFinding[]): MedicalFinding[] {
+  const organMap = new Map<string, MedicalFinding[]>();
+  const unmapped: MedicalFinding[] = [];
+
+  for (const f of findings) {
+    if (f.verifiedTargets.length > 0) {
+      // Group by the primary target's ID
+      const primaryTargetId = f.verifiedTargets[0].targetId;
+      const group = organMap.get(primaryTargetId) || [];
+      group.push(f);
+      organMap.set(primaryTargetId, group);
+    } else {
+      unmapped.push(f);
+    }
+  }
+
+  const result: MedicalFinding[] = [];
+
+  for (const group of organMap.values()) {
+    if (group.length === 1) {
+      result.push(group[0]);
+      continue;
+    }
+
+    // Rank: abnormal findings (present + condition) > measurement > present > ruled out
+    group.sort((a, b) => {
+      const aScore =
+        (a.negation === "present" && a.condition ? 4 : 0) +
+        (a.measurement ? 2 : 0) +
+        (a.negation === "present" ? 1 : 0);
+      const bScore =
+        (b.negation === "present" && b.condition ? 4 : 0) +
+        (b.measurement ? 2 : 0) +
+        (b.negation === "present" ? 1 : 0);
+      return bScore - aScore;
+    });
+
+    const primary = { ...group[0] };
+    const extraDetails = group
+      .slice(1)
+      .map((g) => g.observation || g.reportPhrase)
+      .filter((obs) => obs && !primary.observation.toLowerCase().includes(obs.toLowerCase().slice(0, 15)));
+
+    if (extraDetails.length > 0) {
+      primary.observation = `${primary.observation} (Also noted: ${extraDetails.join("; ")})`;
+    }
+
+    // Merge complementary explanations
+    for (const g of group.slice(1)) {
+      if (g.explanation && !primary.explanation.toLowerCase().includes(g.term.toLowerCase())) {
+        primary.explanation = `${primary.explanation} Note: ${g.explanation}`;
+      }
+    }
+
+    // Combine all verified targets across the group
+    const allTargetsMap = new Map<string, VerifiedAnatomyTarget>();
+    for (const item of group) {
+      for (const t of item.verifiedTargets) {
+        allTargetsMap.set(t.targetId, t);
+      }
+    }
+    primary.verifiedTargets = Array.from(allTargetsMap.values());
+
+    result.push(primary);
+  }
+
+  // Deduplicate unmapped findings by normalized term
+  const seenTerms = new Set<string>();
+  for (const u of unmapped) {
+    const termKey = u.term.toLowerCase().trim();
+    if (!seenTerms.has(termKey)) {
+      seenTerms.add(termKey);
+      result.push(u);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Section 9 (availability filter): a finding is anatomy-linked / visualizable only
+ * when it has at least one verified target that is present in the loaded model
+ * and maps to real, renderable mesh IDs. Findings without such a target never
+ * get a fake mesh — they are excluded from the linked card list but preserved
+ * in the full report data.
+ */
+export function isVisualizableFinding(finding: MedicalFinding): boolean {
+  return finding.verifiedTargets.some(
+    (t) => t.availableInModel && t.partIds.length > 0,
+  );
+}
+
+/**
+ * Splits findings into anatomy-linked (visualizable) and not-visualizable lists.
+ */
+export function splitFindingsByAvailability(findings: MedicalFinding[]): {
+  visualizable: MedicalFinding[];
+  notVisualizable: MedicalFinding[];
+} {
+  const visualizable = findings.filter(isVisualizableFinding);
+  const notVisualizable = findings.filter((f) => !isVisualizableFinding(f));
+  return { visualizable, notVisualizable };
+}
+
+/**
  * Maps an array of raw findings from report analysis to verified targets in the loaded atlas.
  */
 export function enrichFindingsWithAtlas(findings: MedicalFinding[], atlas: Atlas): MedicalFinding[] {
-  return findings.map((finding) => {
+  const enriched = findings.map((finding) => {
     const verifiedTargets: VerifiedAnatomyTarget[] = [];
     const warnings: string[] = [...(finding.warnings || [])];
 
-    // 1. Process explicit anatomical mentions
-    const enrichedMentions: AnatomicalMention[] = finding.anatomicalMentions.map((mention) => {
+    // 1. Process explicit anatomical mentions (support both camelCase and snake_case)
+    const rawMentions: AnatomicalMention[] =
+      finding.anatomicalMentions ||
+      (finding as unknown as { anatomical_mentions?: AnatomicalMention[] }).anatomical_mentions ||
+      [];
+
+    const enrichedMentions: AnatomicalMention[] = rawMentions.map((mention) => {
       const target = resolveAnatomyTarget(mention.term, atlas, {
         laterality: mention.laterality || finding.laterality,
         relationshipTypeOverride: "direct",
@@ -625,4 +738,6 @@ export function enrichFindingsWithAtlas(findings: MedicalFinding[], atlas: Atlas
       warnings: [...new Set(warnings)],
     };
   });
+
+  return deduplicateFindingsByTarget(enriched);
 }

@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { resolveAnatomyTarget } from "../app/medical-mapping.ts";
+import { resolveAnatomyTarget, deduplicateFindingsByTarget, splitFindingsByAvailability } from "../app/medical-mapping.ts";
 import { extractFindingsLocally } from "../app/medical-report-service.ts";
 import { MedicalAnatomyController } from "../app/medical-anatomy-controller.ts";
+import { explicitLanguageRequest, resolveResponseLanguage } from "../app/medical-language.ts";
 import { SUPPORTED_LANGUAGES } from "../app/medical-types.ts";
 import { TRANSLATIONS } from "../app/medical-i18n.ts";
 
@@ -128,10 +129,16 @@ test("SehatSetu: MedicalAnatomyController captures baseline and restores state c
     availableInModel: true,
   };
 
-  const focused = controller.focusTarget(target, initialSceneState, "isolate");
+  const focused = controller.isolateTarget(target, initialSceneState);
   assert.deepEqual(focused.selected, ["FJ2817"]);
+  assert.deepEqual(focused.pinnedHighlight, ["FJ2817"]);
   assert.equal(focused.isolate, true);
   assert.equal(focused.focus, 2);
+
+  const highlighted = controller.highlightTarget(target, initialSceneState);
+  assert.deepEqual(highlighted.selected, ["FJ2817"]);
+  assert.deepEqual(highlighted.pinnedHighlight, ["FJ2817"]);
+  assert.equal(highlighted.isolate, false);
 
   const restored = controller.restoreBaseline({
     ...initialSceneState,
@@ -141,3 +148,155 @@ test("SehatSetu: MedicalAnatomyController captures baseline and restores state c
   assert.deepEqual(restored.selected, ["FJ2564"]);
   assert.equal(restored.isolate, false);
 });
+
+test("SehatSetu: deduplicates multiple findings targeting the same organ cleanly", () => {
+  const duplicateFindings = [
+    {
+      findingId: "f-1",
+      term: "gallstones",
+      reportPhrase: "12 mm calculus within the gallbladder lumen",
+      condition: "cholelithiasis",
+      observation: "12 mm calculus within the gallbladder lumen (cholelithiasis)",
+      laterality: "unspecified",
+      negation: "present",
+      certainty: "confirmed",
+      temporalContext: "current",
+      measurement: { value: 12, unit: "mm" },
+      source: { page: 1, evidenceText: "12 mm calculus within the gallbladder lumen" },
+      explanation: "Gallstones noted in gallbladder.",
+      anatomicalMentions: [{ term: "gallbladder", laterality: "unspecified", catalogueMappingStatus: "verified" }],
+      verifiedTargets: [
+        {
+          targetId: "FMA7202",
+          name: "gallbladder",
+          system: "digestive",
+          partIds: ["FJ2817"],
+          relationshipType: "direct",
+          confidence: "verified",
+          source: "test",
+          availableInModel: true,
+        },
+      ],
+      warnings: [],
+    },
+    {
+      findingId: "f-2",
+      term: "gallbladder wall thickness",
+      reportPhrase: "Gallbladder wall is normal (2.2 mm)",
+      observation: "Gallbladder wall is normal (2.2 mm)",
+      laterality: "unspecified",
+      negation: "present",
+      certainty: "confirmed",
+      temporalContext: "current",
+      measurement: { value: 2.2, unit: "mm" },
+      source: { page: 1, evidenceText: "Gallbladder wall is normal (2.2 mm)" },
+      explanation: "Gallbladder wall is normal.",
+      anatomicalMentions: [{ term: "gallbladder", laterality: "unspecified", catalogueMappingStatus: "verified" }],
+      verifiedTargets: [
+        {
+          targetId: "FMA7202",
+          name: "gallbladder",
+          system: "digestive",
+          partIds: ["FJ2817"],
+          relationshipType: "direct",
+          confidence: "verified",
+          source: "test",
+          availableInModel: true,
+        },
+      ],
+      warnings: [],
+    },
+  ];
+
+  const deduplicated = deduplicateFindingsByTarget(duplicateFindings);
+
+  assert.equal(deduplicated.length, 1, "Duplicate findings targeting the same organ must be merged into 1 finding");
+  assert.equal(deduplicated[0].term, "gallstones", "Primary finding should prioritize abnormal diagnosis with condition");
+  assert.equal(deduplicated[0].condition, "cholelithiasis");
+  assert.ok(deduplicated[0].observation.includes("Gallbladder wall is normal"), "Secondary finding observation should be preserved in merged details");
+});
+
+test("SehatSetu: resolves response language per message (explicit > detected > preferred)", () => {
+  // 1. Explicit per-message request wins even with an English preference.
+  assert.equal(explicitLanguageRequest("Answer in Hindi please"), "hi");
+  assert.equal(explicitLanguageRequest("Explain in Tamil"), "ta");
+  assert.equal(resolveResponseLanguage("Answer in Hindi please", "en"), "hi");
+
+  // 2. Native-language standalone request.
+  assert.equal(resolveResponseLanguage("हिंदी में बताओ", "en"), "hi");
+
+  // 3. Script detection dominates for code-switched messages.
+  //    English medical terms must NOT force English (Hindi + 'gallstone').
+  assert.equal(resolveResponseLanguage("पित्ताशय में gallstone का matlab kya hai?", "en"), "hi");
+  assert.equal(resolveResponseLanguage("మీరు ఏమి అడుగుతున్నారు?", "en"), "te");
+  assert.equal(resolveResponseLanguage("இது என்ன gallbladder", "en"), "ta");
+
+  // 4. Short/ambiguous message falls back to the selected language —
+  //    English medical words alone do not make it English.
+  assert.equal(resolveResponseLanguage("gallstone", "hi"), "hi");
+  assert.equal(resolveResponseLanguage("kidney", "bn"), "bn");
+
+  // 5. Marathi user writing Devanagari keeps Marathi preference.
+  assert.equal(resolveResponseLanguage("मस्तिष्क के बारे में बताओ", "mr"), "mr");
+
+  // 6. English text with English preference stays English.
+  assert.equal(resolveResponseLanguage("What does my report say about the liver?", "en"), "en");
+});
+
+test("SehatSetu: splits findings by actual 3D availability per loaded atlas", () => {
+  // A female-model report on the male atlas: uterus findings lose their mesh
+  // mapping and must be excluded from the linked card list, not fabricated.
+  const findings = [
+    {
+      findingId: "f-gb",
+      term: "gallstones",
+      reportPhrase: "12 mm calculus",
+      observation: "",
+      laterality: "unspecified",
+      negation: "present",
+      certainty: "confirmed",
+      temporalContext: "current",
+      source: { page: 1, evidenceText: "12 mm calculus" },
+      explanation: "",
+      anatomicalMentions: [],
+      verifiedTargets: [
+        {
+          targetId: "FMA7202",
+          name: "gallbladder",
+          system: "digestive",
+          partIds: ["FJ2817"],
+          relationshipType: "direct",
+          confidence: "verified",
+          source: "test",
+          availableInModel: true,
+        },
+      ],
+      warnings: [],
+    },
+  ].concat(
+    resolveAnatomyTarget("uterus", maleAtlas)
+      ? [{
+          findingId: "f-ut",
+          term: "uterus",
+          reportPhrase: "Hypodense lesion in uterus",
+          observation: "",
+          laterality: "unspecified",
+          negation: "present",
+          certainty: "suspected",
+          temporalContext: "current",
+          source: { page: 1, evidenceText: "Hypodense lesion in uterus" },
+          explanation: "",
+          anatomicalMentions: [],
+          // Unresolved target has no partIds → not visualizable in male atlas.
+          verifiedTargets: [resolveAnatomyTarget("uterus", maleAtlas)],
+          warnings: [],
+        }]
+      : [],
+  );
+
+  const { visualizable, notVisualizable } = splitFindingsByAvailability(findings);
+  assert.equal(visualizable.length, 1, "Gallbladder finding is linked");
+  assert.equal(notVisualizable.length >= 1, true, "Uterus finding has no male-model mesh and is excluded");
+  assert.ok(visualizable.every((f) => f.verifiedTargets.some((t) => t.partIds.length > 0)));
+});
+

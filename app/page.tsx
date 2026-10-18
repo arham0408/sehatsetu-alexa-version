@@ -12,7 +12,7 @@ import {
   type ModelId,
 } from "./model-catalogue";
 import { registerAtlasTools } from "./agent-tools";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -47,6 +47,7 @@ import { backgroundColor, backgroundForeground } from "./background-brightness";
 import SystemLayers from "./system-layers";
 import ViewLibrary from "./view-library";
 import MedicalReportExplorer from "./medical-report-explorer";
+import { ScopedChat } from "./medical-scoped-chat";
 import PwaPanel, { pwaLabel } from "./pwa-panel";
 import { prepareOffline, usePwa } from "./pwa";
 import { APP_VERSION } from "./version";
@@ -490,6 +491,20 @@ export default function Home() {
     const timeout = window.setTimeout(() => setViewNotice(""), 6000);
     return () => window.clearTimeout(timeout);
   }, [viewNotice]);
+  // Stable identity for the SehatSetu explorer: unstable callbacks make its
+  // unmount-cleanup effect fire on every re-render, which wipes pinned
+  // highlights and restarts the camera mid-flight while the report is open.
+  const updateSceneState = useCallback(
+    (
+      update: Partial<SceneState> | ((current: SceneState) => SceneState),
+    ) => {
+      setState((current) =>
+        typeof update === "function" ? update(current) : { ...current, ...update },
+      );
+    },
+    [],
+  );
+  const closeSehatSetu = useCallback(() => setSehatSetuOpen(false), []);
   const getView = () => {
     if (!cameraPose.current || !settled.current) return null;
     setState((current) => ({ ...current, rotate: false }));
@@ -610,12 +625,8 @@ export default function Home() {
         <MedicalReportExplorer
           atlas={atlas}
           sceneState={sceneState}
-          onUpdateSceneState={(update) => {
-            setState((current) =>
-              typeof update === "function" ? update(current) : { ...current, ...update },
-            );
-          }}
-          onClose={() => setSehatSetuOpen(false)}
+          onUpdateSceneState={updateSceneState}
+          onClose={closeSehatSetu}
         />
       )}
       <section
@@ -1125,6 +1136,23 @@ export default function Home() {
                   {source.name} source <ArrowUpRight size={14} />
                 </a>
               ))}
+              {/* Section 10: contextual knowledge chatbot for every structure,
+                  works with or without an active SehatSetu report. */}
+              {chosen && atlas && (
+                <ScopedChat
+                  className="sehatsetu-structure-chat"
+                  atlas={atlas}
+                  scoped={{
+                    contextType: "structure",
+                    structureId: chosen.id,
+                    structureName: chosen.name,
+                    structureAliases: chosen.searchAliases ?? [],
+                    structureDescription: chosen.searchGroup?.description,
+                  }}
+                  reportContext=""
+                  placeholder="Ask AI about this structure…"
+                />
+              )}
             </div>
             <div className="detail-actions">
               <div className="detail-focus-actions">

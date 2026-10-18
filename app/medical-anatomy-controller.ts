@@ -10,8 +10,6 @@ export interface BaselineViewerState {
   focus: number;
 }
 
-export type AnatomyVisualizationMode = "highlight" | "isolate" | "full";
-
 export class MedicalAnatomyController {
   private baseline: BaselineViewerState | null = null;
   private activeTargetIds: string[] = [];
@@ -40,19 +38,40 @@ export class MedicalAnatomyController {
   }
 
   /**
-   * Applies focus, highlighting, and camera movement toward a specific verified anatomical target.
+   * Highlights a verified anatomical target and flies the camera to it, keeping
+   * surrounding anatomy visible.
    */
-  public focusTarget(
+  public highlightTarget(
     target: VerifiedAnatomyTarget,
     currentState: SceneState,
-    mode: AnatomyVisualizationMode = "highlight",
   ): Partial<SceneState> {
     this.captureBaseline(currentState);
     this.activeTargetIds = [...target.partIds];
 
     return {
       selected: [...target.partIds],
-      isolate: mode === "isolate",
+      pinnedHighlight: [...target.partIds],
+      isolate: false,
+      focus: (currentState.focus ?? 0) + 1,
+      rotate: false,
+    };
+  }
+
+  /**
+   * Isolates a verified anatomical target: hides unrelated structures, keeps
+   * the target highlighted, and flies the camera in close.
+   */
+  public isolateTarget(
+    target: VerifiedAnatomyTarget,
+    currentState: SceneState,
+  ): Partial<SceneState> {
+    this.captureBaseline(currentState);
+    this.activeTargetIds = [...target.partIds];
+
+    return {
+      selected: [...target.partIds],
+      pinnedHighlight: [...target.partIds],
+      isolate: true,
       focus: (currentState.focus ?? 0) + 1,
       rotate: false,
     };
@@ -64,7 +83,6 @@ export class MedicalAnatomyController {
   public focusAllTargets(
     targets: VerifiedAnatomyTarget[],
     currentState: SceneState,
-    mode: AnatomyVisualizationMode = "highlight",
   ): Partial<SceneState> {
     this.captureBaseline(currentState);
     const allPartIds = [
@@ -74,31 +92,8 @@ export class MedicalAnatomyController {
 
     return {
       selected: allPartIds,
-      isolate: mode === "isolate",
-      focus: (currentState.focus ?? 0) + 1,
-      rotate: false,
-    };
-  }
-
-  /**
-   * Changes the visualization mode between Highlight Only, Isolate (hide/dim unrelated), and Full.
-   */
-  public setVisualizationMode(
-    mode: AnatomyVisualizationMode,
-    currentState: SceneState,
-  ): Partial<SceneState> {
-    if (mode === "full") {
-      return {
-        selected: [],
-        isolate: false,
-        focus: (currentState.focus ?? 0) + 1,
-        rotate: false,
-      };
-    }
-
-    return {
-      isolate: mode === "isolate",
-      selected: currentState.selected.length ? currentState.selected : [...this.activeTargetIds],
+      pinnedHighlight: allPartIds,
+      isolate: false,
       focus: (currentState.focus ?? 0) + 1,
       rotate: false,
     };

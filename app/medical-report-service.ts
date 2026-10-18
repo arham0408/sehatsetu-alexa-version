@@ -1,6 +1,8 @@
 import type { Atlas } from "./anatomy.ts";
+import { resolveResponseLanguage } from "./medical-language.ts";
 import { enrichFindingsWithAtlas, resolveAnatomyTarget } from "./medical-mapping.ts";
 import type {
+  AnatomicalMention,
   ChatMessage,
   FindingCertainty,
   FindingNegation,
@@ -211,6 +213,35 @@ export function extractFindingsLocally(text: string, atlas: Atlas): MedicalFindi
 /**
  * Analyzes a report either via backend AI provider or local deterministic pipeline.
  */
+function normalizeRawFinding(f: any, idx: number): MedicalFinding {
+  const mentionsRaw = f.anatomicalMentions || f.anatomical_mentions || [];
+  const mentions: AnatomicalMention[] = mentionsRaw.map((m: any) => ({
+    term: m.term || "",
+    laterality: m.laterality || "unspecified",
+    catalogueMappingStatus: m.catalogueMappingStatus || m.catalogue_mapping_status || "verified",
+    suggestedTarget: m.suggestedTarget || m.suggested_target,
+  }));
+
+  return {
+    findingId: f.findingId || f.finding_id || `f-${idx + 1}`,
+    term: f.term || "",
+    reportPhrase: f.reportPhrase || f.report_phrase || "",
+    condition: f.condition,
+    observation: f.observation || f.reportPhrase || f.report_phrase || "",
+    anatomicalLocation: f.anatomicalLocation || f.anatomical_location,
+    laterality: f.laterality || "unspecified",
+    negation: f.negation || "present",
+    certainty: f.certainty || "confirmed",
+    temporalContext: f.temporalContext || f.temporal_context || "current",
+    measurement: f.measurement,
+    source: f.source || { page: 1, evidenceText: f.reportPhrase || f.report_phrase || "" },
+    explanation: f.explanation || "",
+    anatomicalMentions: mentions,
+    verifiedTargets: f.verifiedTargets || f.verified_targets || [],
+    warnings: f.warnings || [],
+  };
+}
+
 export async function analyzeReport(
   content: { file?: File; text?: string; filename: string },
   atlas: Atlas,
@@ -245,14 +276,24 @@ export async function analyzeReport(
     clearTimeout(timeoutId);
 
     if (response.ok) {
-      const data = (await response.json()) as ReportAnalysisResult;
+      const data = (await response.json()) as any;
       onProgress?.(85, "Mapping findings to 3D anatomy...");
-      // Re-verify all targets deterministically against current loaded atlas
-      const enriched = enrichFindingsWithAtlas(data.findings, atlas);
+      const rawList = Array.isArray(data.findings) ? data.findings : [];
+      const normalized = rawList.map((f: any, idx: number) => normalizeRawFinding(f, idx));
+      const enriched = enrichFindingsWithAtlas(normalized, atlas);
       onProgress?.(100, "Analysis complete.");
       return {
-        ...data,
+        reportId: data.report_id || data.reportId || `rep-${Date.now()}`,
+        filename: data.filename || content.filename || "medical_report.pdf",
+        extractedText: data.extracted_text || data.extractedText || reportText,
+        pageCount: data.page_count || data.pageCount || 1,
+        summary: data.summary || `Extracted ${enriched.length} clinical observations.`,
         findings: enriched,
+        unmappedTerms: data.unmapped_terms || data.unmappedTerms || [],
+        disclaimer: data.disclaimer || "Educational Reference Only.",
+        createdAt: data.created_at || data.createdAt || new Date().toISOString(),
+        provider: data.provider || "groq",
+        model: data.model || "openai/gpt-oss-120b",
       };
     } else {
       const errData = await response.json().catch(() => null);
@@ -342,7 +383,48 @@ async function extractTextFromPdfFile(file: File): Promise<string> {
 }
 
 /**
+ * Shared scoped-chat contract. Four chat surfaces (report, finding card,
+ * structure panel, AI location) share one provider integration while receiving
+ * strictly scoped context.
+ */
+export interface ScopedChatContext {
+  contextType: "report" | "finding" | "structure" | "location";
+  reportId?: string;
+  findingId?: string;
+  findingTerm?: string;
+  findingEvidence?: string;
+  findingExplanation?: string;
+  findingCondition?: string;
+  findingCertainty?: string;
+  findingMeasurement?: string;
+  findingPage?: number;
+  /** Catalogue concept/part IDs verified for this scope. */
+  verifiedStructureIds?: readonly string[];
+  structureId?: string;
+  structureName?: string;
+  structureAliases?: readonly string[];
+  structureDescription?: string;
+  /** Override the selected language preference for this turn. */
+  preferredLanguage?: IndianLanguageCode;
+}
+
+/**
+ * Heuristic for anatomy-location questions in the main report chat so they
+ * travel with `contextType: "location"` (the backend then only names clearly
+ * identified structures, which the app re-verifies against the catalogue).
+ */
+const LOCATION_REQUEST_RE =
+  /\b(show me|where (?:is|are|do i find|is the)|locate|find (?:me )?(?:the|my)|take me to|navigate to|fly to|look at|position of|dikhao|dikhana|kahan|kidhar|konsa|konsi|kaun sa)\b/i;
+
+export function isLocationRequest(question: string): boolean {
+  return LOCATION_REQUEST_RE.test(question);
+}
+
+/**
  * Handles conversational queries to the assistant with anatomy navigation intent.
+ * The response language is resolved per message (explicit request > detected
+ * script > selected preference) and returned on the assistant message so
+ * text-to-speech matches what was actually said.
  */
 export async function sendChatMessage(
   question: string,
@@ -353,7 +435,10 @@ export async function sendChatMessage(
   selectedOrgan?: string | null,
   currentFinding?: string | null,
   sessionId?: string,
+  scoped?: ScopedChatContext,
 ): Promise<ChatMessage> {
+  const preferred = scoped?.preferredLanguage ?? language;
+  const responseLanguage = resolveResponseLanguage(question, preferred);
   // Try backend first
   try {
     const controller = new AbortController();
@@ -364,8 +449,28 @@ export async function sendChatMessage(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question,
-        report_context: reportContext.slice(0, 4000),
+        report_context:
+          scoped?.contextType === "structure" ? "" : reportContext.slice(0, 4000),
         language,
+        preferred_language: preferred,
+        response_language: responseLanguage,
+        context_type: scoped?.contextType || "report",
+        finding_id: scoped?.findingId,
+        finding_term: scoped?.findingTerm,
+        finding_evidence: scoped?.findingEvidence,
+        finding_condition: scoped?.findingCondition,
+        finding_certainty: scoped?.findingCertainty,
+        finding_measurement: scoped?.findingMeasurement,
+        finding_page: scoped?.findingPage,
+        verified_structure_ids: scoped?.verifiedStructureIds
+          ? [...scoped.verifiedStructureIds].slice(0, 24)
+          : undefined,
+        structure_id: scoped?.structureId,
+        structure_name: scoped?.structureName,
+        structure_aliases: scoped?.structureAliases
+          ? [...scoped.structureAliases].slice(0, 6)
+          : undefined,
+        structure_description: scoped?.structureDescription,
         history: history.slice(-6).map((m) => ({
           sender: m.sender,
           text: m.text,
@@ -396,6 +501,7 @@ export async function sendChatMessage(
         sender: "assistant",
         text: data.answer,
         timestamp: Date.now(),
+        language: responseLanguage,
         mentionedTargets,
         navigationIntent: data.navigation_intent,
         warnings: data.warnings,
@@ -405,7 +511,7 @@ export async function sendChatMessage(
     /* Backend not available; proceed to local intelligent assistant */
   }
 
-  // Local rule-based assistant fallback
+  // Local rule-based assistant fallback (English content, resolved language tag)
   const qNorm = question.toLowerCase();
   let answer = "";
   const mentionedTerms: string[] = [];
@@ -433,7 +539,15 @@ export async function sendChatMessage(
     }
   }
 
-  if (qNorm.includes("gallbladder") || qNorm.includes("gallstone") || qNorm.includes("cholelithiasis")) {
+  if (selectedOrgan) {
+    mentionedTerms.push(selectedOrgan);
+    navigationIntent = true;
+    if (currentFinding) {
+      answer = `Regarding your ${selectedOrgan}: the uploaded report identifies ${currentFinding}. In your 3D view, this structure is highlighted in yellow. Consult your clinician for specific treatment or surgical evaluation if you experience persistent symptoms.`;
+    } else {
+      answer = `Regarding your ${selectedOrgan}: this structure is shown as normal reference anatomy. There are no acute abnormalities, stones, or lesions noted for the ${selectedOrgan} in your uploaded medical report.`;
+    }
+  } else if (qNorm.includes("gallbladder") || qNorm.includes("gallstone") || qNorm.includes("cholelithiasis")) {
     answer =
       "In this report, the gallbladder contains a 12 mm calculus (gallstone). In the 3D model, the gallbladder is located beneath the liver in the right upper abdomen. Gallstones form when substances in bile harden into stone-like material.";
     mentionedTerms.push("gallbladder");
@@ -461,7 +575,7 @@ export async function sendChatMessage(
       "This report records diagnostic observations from medical imaging. You can click on any highlighted finding in the list above to view its 3D anatomical position, or ask specifically about any organ mentioned in the report.";
   } else {
     answer =
-      "I've reviewed the report context. You can click on any clinical finding above to inspect its 3D location in the human atlas, or ask me: 'Show me the gallbladder', 'Explain fatty liver', or 'What should I ask my doctor?'";
+      "I've reviewed your report context. You can tap any clinical finding above to inspect its 3D location in the human atlas, or ask me: 'Show me the gallbladder', 'Explain fatty liver', or 'What should I ask my doctor?'";
   }
 
   const resolvedTargets = mentionedTerms
@@ -473,6 +587,7 @@ export async function sendChatMessage(
     sender: "assistant",
     text: answer,
     timestamp: Date.now(),
+    language: responseLanguage,
     mentionedTargets: resolvedTargets,
     navigationIntent,
   };

@@ -91,6 +91,8 @@ export interface ChatMessage {
   sender: "user" | "assistant" | "system";
   text: string;
   timestamp: number;
+  // Language of this assistant response (resolved per message). Used for TTS.
+  language?: IndianLanguageCode;
   mentionedTargets?: VerifiedAnatomyTarget[];
   navigationIntent?: boolean;
   warnings?: string[];

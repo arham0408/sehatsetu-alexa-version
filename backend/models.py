@@ -49,12 +49,29 @@ class ChatRequest(BaseModel):
     selected_organ: Optional[str] = None
     current_finding: Optional[str] = None
     session_id: Optional[str] = None
+    # Scoped-chat contract (contextType: report | finding | structure | location)
+    context_type: Optional[str] = None
+    preferred_language: Optional[str] = None
+    response_language: Optional[str] = None
+    finding_id: Optional[str] = None
+    finding_term: Optional[str] = None
+    finding_evidence: Optional[str] = None
+    finding_condition: Optional[str] = None
+    finding_certainty: Optional[str] = None
+    finding_measurement: Optional[str] = None
+    finding_page: Optional[int] = None
+    verified_structure_ids: Optional[List[str]] = None
+    structure_id: Optional[str] = None
+    structure_name: Optional[str] = None
+    structure_aliases: Optional[List[str]] = None
+    structure_description: Optional[str] = None
 
 class ChatResponse(BaseModel):
     answer: str
     mentioned_terms: List[str] = Field(default_factory=list)
     navigation_intent: bool = False
     warnings: List[str] = Field(default_factory=list)
+    response_language: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str

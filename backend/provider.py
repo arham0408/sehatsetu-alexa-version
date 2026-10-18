@@ -11,6 +11,17 @@ except ImportError:
 
 logger = logging.getLogger("sehatsetu.provider")
 
+CHAT_LANGUAGE_NAMES = {
+    "en": "English",
+    "hi": "Hindi (हिन्दी)",
+    "bn": "Bengali (বাংলা)",
+    "te": "Telugu (తెలుగు)",
+    "mr": "Marathi (मराठी)",
+    "ta": "Tamil (தமிழ்)",
+    "gu": "Gujarati (ગુજરાતી)",
+    "kn": "Kannada (ಕನ್ನಡ)",
+}
+
 SYSTEM_EXTRACTION_PROMPT = """You are SehatSetu Medical AI, a specialized clinical terminology extraction engine for 3D anatomical mapping.
 Your job is to analyze clinical medical reports (radiology, ultrasound, pathology, discharge summaries) and extract structured medical findings with their anatomical associations.
 
@@ -127,7 +138,9 @@ class MedicalAIProvider:
             logger.info("GROQ_API_KEY not configured. Using deterministic rule-based medical extraction.")
             return self._extract_findings_deterministic(report_text, language)
 
-        prompt = f"""Language requested for explanations and summary: {language}
+        lang_name = CHAT_LANGUAGE_NAMES.get(language, language)
+        prompt = f"""Language requested for explanations and summary: {lang_name} ({language}).
+Write the summary and the 'explanation' field in {lang_name}. Do not switch to English unless explicitly requested.
 
 Extract all anatomical and pathological findings from this medical report:
 \"\"\"
@@ -201,20 +214,54 @@ Extract all anatomical and pathological findings from this medical report:
         history: List[Dict[str, str]],
         selected_organ: Optional[str] = None,
         current_finding: Optional[str] = None,
+        context_type: Optional[str] = None,
+        response_language: Optional[str] = None,
+        preferred_language: Optional[str] = None,
+        finding_term: Optional[str] = None,
+        finding_evidence: Optional[str] = None,
+        finding_condition: Optional[str] = None,
+        finding_certainty: Optional[str] = None,
+        finding_measurement: Optional[str] = None,
+        finding_page: Optional[int] = None,
+        verified_structure_ids: Optional[List[str]] = None,
+        structure_id: Optional[str] = None,
+        structure_name: Optional[str] = None,
+        structure_aliases: Optional[List[str]] = None,
+        structure_description: Optional[str] = None,
     ) -> ChatResponse:
         """
         Answers conversational questions about the medical report and anatomy.
+        The response language is supplied by the application per message.
         """
         if not self.is_configured():
             return self._answer_chat_deterministic(question, report_context, language)
 
-        chat_system_prompt = f"""You are SehatSetu AI, an empathetic, clear medical report companion explaining medical concepts in {language}.
+        active_language = response_language or language
+        context_block = self._build_context_block(
+            context_type,
+            report_context,
+            finding_term,
+            finding_evidence,
+            finding_condition,
+            finding_certainty,
+            finding_measurement,
+            finding_page,
+            verified_structure_ids,
+            structure_id,
+            structure_name,
+            structure_aliases,
+            structure_description,
+        )
+
+        chat_system_prompt = f"""You are SehatSetu AI, an empathetic, clear medical report companion.
 Rules:
-1. Explain medical terms simply and accessibly in {language}.
-2. If the user asks about an organ or body part (e.g. gallbladder, liver, lung, heart, brain, kidney), mention its canonical name in 'mentioned_terms' and set 'navigation_intent': true.
-3. Distinguish what the report explicitly states from general educational information.
-4. Never claim to diagnose the patient or change prescriptions. Recommend consulting their treating clinician for personal medical decisions.
-5. Return JSON:
+1. Answer the user's current question in the resolved response language supplied by the application ({active_language}). Or the explicit language the user requested.
+2. Continue in that language unless the user asks for another.
+3. Keep clinically meaningful English medical terms when useful, but explain them in the response language. For mixed-language (code-switched) input, use the dominant language. Do not switch to English because the report or earlier messages are in English.
+4. Keep explanations accurate and distinguish report-specific evidence from general educational information.
+5. If the user asks about an organ or body part (e.g. gallbladder, liver, lung, heart, brain, kidney), mention its canonical name in 'mentioned_terms' and set 'navigation_intent': true. Only mention terms for structures you are confident the question is about; the application verifies them against the anatomy catalogue.
+6. Never claim to diagnose the patient or change prescriptions. Recommend consulting their treating clinician for personal medical decisions.
+7. Return JSON:
 {{
   "answer": "Plain-language explanation",
   "mentioned_terms": ["gallbladder"],
@@ -224,8 +271,8 @@ Rules:
 """
 
         messages = [{"role": "system", "content": chat_system_prompt}]
-        if report_context:
-            messages.append({"role": "system", "content": f"Context of active medical report:\n{report_context[:4000]}"})
+        if context_block:
+            messages.append({"role": "system", "content": context_block})
 
         if selected_organ:
             organ_info = f"The patient is currently inspecting this 3D anatomical organ: {selected_organ}."
@@ -285,6 +332,7 @@ Rules:
                             mentioned_terms=parsed.get("mentioned_terms", [selected_organ] if selected_organ else []),
                             navigation_intent=parsed.get("navigation_intent", bool(selected_organ)),
                             warnings=parsed.get("warnings", []),
+                            response_language=active_language,
                         )
                     except Exception:
                         return ChatResponse(
@@ -292,11 +340,83 @@ Rules:
                             mentioned_terms=[selected_organ] if selected_organ else [],
                             navigation_intent=bool(selected_organ),
                             warnings=[],
+                            response_language=active_language,
                         )
         except Exception as e:
             logger.warning("Exception during Groq chat: %s. Using local fallback.", str(e))
 
         return self._answer_chat_deterministic(question, report_context, language)
+
+    @staticmethod
+    def _build_context_block(
+        context_type: Optional[str],
+        report_context: str,
+        finding_term: Optional[str],
+        finding_evidence: Optional[str],
+        finding_condition: Optional[str],
+        finding_certainty: Optional[str],
+        finding_measurement: Optional[str],
+        finding_page: Optional[int],
+        verified_structure_ids: Optional[List[str]],
+        structure_id: Optional[str],
+        structure_name: Optional[str],
+        structure_aliases: Optional[List[str]],
+        structure_description: Optional[str],
+    ) -> str:
+        """
+        Builds the strictly scoped system context block for the four
+        chat surfaces (report, finding, structure, location).
+        """
+        blocks: List[str] = []
+
+        if context_type == "finding":
+            blocks.append("CONTEXT TYPE: The user is asking about ONE extracted clinical finding card. Answer only about this finding plus general education.")
+            if finding_term:
+                blocks.append(f"Finding: {finding_term}")
+            if finding_condition:
+                blocks.append(f"Condition: {finding_condition}")
+            if finding_certainty:
+                blocks.append(f"Certainty/negation: {finding_certainty}")
+            if finding_measurement:
+                blocks.append(f"Measurement: {finding_measurement}")
+            if finding_page is not None:
+                blocks.append(f"Source page: {finding_page}")
+            if finding_evidence:
+                blocks.append(f"Evidence from this finding: {finding_evidence[:800]}")
+            if verified_structure_ids:
+                blocks.append(
+                    "Verified anatomy IDs the app highlights for this finding (the only structures you may treat as mapped): "
+                    + ", ".join(verified_structure_ids[:24])
+                )
+            if report_context:
+                # Report evidence is available for grounding but stays subordinate.
+                blocks.append(f"Full report context (use only when answering about this finding):\n{report_context[:4000]}")
+        elif context_type == "structure":
+            blocks.append("CONTEXT TYPE: The user is asking about ONE anatomical structure from the 3D atlas 'Find a Structure' panel. This is general anatomy education, not a report review. Selecting or asking about a structure must NEVER imply the patient has a disease in it.")
+            blocks.append("LABEL SOURCE: Facts from the catalogue below are catalogue knowledge; anything else you state is general educational knowledge, not from the patient's report.")
+            if structure_id:
+                blocks.append(f"Structure ID: {structure_id}")
+            if structure_name:
+                blocks.append(f"Structure name: {structure_name}")
+            if structure_aliases:
+                blocks.append(f"Accepted aliases: {', '.join([a for a in structure_aliases if a])}")
+            if structure_description:
+                blocks.append(f"Catalogue description: {structure_description[:900]}")
+            if report_context:
+                blocks.append(f"Report context found for this structure. Use it for report-specific statements only. If the report does not mention this structure, say so instead of inventing an association:\n{report_context[:2500]}")
+        elif context_type == "location":
+            blocks.append(
+                "CONTEXT TYPE: Anatomical location request. Identify ONE or FEW clearly-named anatomical structures answering the question, "
+                "return only their canonical names in 'mentioned_terms', and set 'navigation_intent': true when the app should fly the camera there. "
+                "Do not name structures you are unsure about."
+            )
+            if report_context:
+                blocks.append(f"Report context:\n{report_context[:4000]}")
+        else:
+            if report_context:
+                blocks.append(f"Context of active medical report:\n{report_context[:4000]}")
+
+        return "\n".join(blocks)
 
     def _extract_findings_deterministic(self, text: str, language: str) -> Dict[str, Any]:
         """

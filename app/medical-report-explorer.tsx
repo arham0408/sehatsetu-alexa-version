@@ -21,12 +21,18 @@ import {
 import type { Atlas, SceneState } from "./anatomy.ts";
 import { TRANSLATIONS } from "./medical-i18n.ts";
 import { MedicalAudioController } from "./medical-audio.ts";
-import { MedicalAnatomyController, type AnatomyVisualizationMode } from "./medical-anatomy-controller.ts";
+import { MedicalAnatomyController } from "./medical-anatomy-controller.ts";
 import {
   SAMPLE_REPORTS,
   analyzeReport,
+  isLocationRequest,
   sendChatMessage,
 } from "./medical-report-service.ts";
+import { ScopedChat } from "./medical-scoped-chat.tsx";
+import {
+  enrichFindingsWithAtlas,
+  isVisualizableFinding,
+} from "./medical-mapping.ts";
 import {
   SUPPORTED_LANGUAGES,
   type ChatMessage,
@@ -55,7 +61,8 @@ export default function MedicalReportExplorer({
   const [activeTab, setActiveTab] = useState<"findings" | "chat" | "upload">("upload");
   const [reportState, setReportState] = useState<ReportAnalysisState>({ status: "idle" });
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
-  const [visMode, setVisMode] = useState<AnatomyVisualizationMode>("highlight");
+  const [isolateMode, setIsolateMode] = useState(false);
+  const [findingChatOpenId, setFindingChatOpenId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -69,8 +76,28 @@ export default function MedicalReportExplorer({
   const audioCtrl = useRef(new MedicalAudioController());
   const anatomyCtrl = useRef(new MedicalAnatomyController());
   const chatStreamRef = useRef<HTMLDivElement>(null);
+  const findingCardsRef = useRef<Map<string, HTMLElement>>(new Map());
 
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
+
+  // Section 9: the finding-to-anatomy mapping is recomputed from the stored
+  // extracted findings whenever the loaded atlas model changes, without
+  // re-running LLM analysis. Findings that resolve against the CURRENT model
+  // stay in the linked card list; the rest are preserved in data only.
+  const activeReport = useMemo(() => {
+    if (!reportState.result) return null;
+    const findings = enrichFindingsWithAtlas(reportState.result.findings, atlas);
+    return { ...reportState.result, findings };
+  }, [reportState.result, atlas]);
+
+  const visualizableFindings = useMemo(
+    () => activeReport?.findings.filter(isVisualizableFinding) ?? [],
+    [activeReport],
+  );
+  const notVisualizableFindings = useMemo(
+    () => activeReport?.findings.filter((f) => !isVisualizableFinding(f)) ?? [],
+    [activeReport],
+  );
 
   // Cleanup on unmount: stop audio and restore baseline visual state
   useEffect(() => {
@@ -84,6 +111,7 @@ export default function MedicalReportExplorer({
         onUpdateSceneState((current) => ({
           ...current,
           ...anatomy.restoreBaseline(current),
+          pinnedHighlight: [],
         }));
       }
     };
@@ -96,20 +124,29 @@ export default function MedicalReportExplorer({
     }
   }, [chatMessages]);
 
+  // Scroll active finding card into view when selected
+  useEffect(() => {
+    if (!activeFindingId) return;
+    const el = findingCardsRef.current.get(activeFindingId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeFindingId]);
+
   // Synchronize 3D scene selection with medical findings
   useEffect(() => {
     if (!sceneState.selected || sceneState.selected.length === 0) return;
-    if (!reportState.result) return;
+    if (!activeReport) return;
 
     const selectedSet = new Set(sceneState.selected);
-    const matching = reportState.result.findings.find((f) =>
+    const matching = activeReport.findings.find((f) =>
       f.verifiedTargets.some((target) => target.partIds.some((pid) => selectedSet.has(pid))),
     );
 
     if (matching) {
       setActiveFindingId(matching.findingId);
     }
-  }, [sceneState.selected, reportState.result]);
+  }, [sceneState.selected, activeReport]);
 
   // Derive organ information for currently selected 3D piece
   const selectedOrganContext = useMemo(() => {
@@ -118,7 +155,7 @@ export default function MedicalReportExplorer({
     const part = atlas.parts.find((p) => p.id === firstPartId);
     if (!part) return null;
 
-    const matchingFinding = reportState.result?.findings.find((f) =>
+    const matchingFinding = activeReport?.findings.find((f) =>
       f.verifiedTargets.some((t) => t.partIds.includes(firstPartId)),
     );
 
@@ -132,7 +169,7 @@ export default function MedicalReportExplorer({
 
   const processReport = useCallback(
     async (content: { file?: File; text?: string; filename: string }) => {
-      // Cleanly isolate this session: stop speech, clear previous chat and findings
+      // Cleanly isolate this session: stop speech, clear previous chat, findings, and highlights
       const newSessionId = `sess-${Date.now()}`;
       setSessionId(newSessionId);
       audioCtrl.current.stopSpeaking();
@@ -142,6 +179,13 @@ export default function MedicalReportExplorer({
       setActiveSpeechId(null);
       setActiveFindingId(null);
       setChatMessages([]);
+
+      // Clean prior highlights from scene immediately
+      onUpdateSceneState((current) => ({
+        ...current,
+        pinnedHighlight: [],
+        selected: [],
+      }));
 
       anatomyCtrl.current.captureBaseline(sceneState);
       setReportState({
@@ -176,11 +220,14 @@ export default function MedicalReportExplorer({
         };
         setChatMessages([initialGreeting]);
 
-        // Auto highlight all verified findings initially
+        // Auto highlight all verified findings as soon as the report loads
         const allTargets = result.findings.flatMap((f) => f.verifiedTargets);
         if (allTargets.length > 0) {
-          const update = anatomyCtrl.current.focusAllTargets(allTargets, sceneState, visMode);
-          onUpdateSceneState(update);
+          const update = anatomyCtrl.current.focusAllTargets(allTargets, sceneState);
+          onUpdateSceneState((current) => ({
+            ...current,
+            ...update,
+          }));
         }
 
         setActiveTab("findings");
@@ -191,7 +238,7 @@ export default function MedicalReportExplorer({
         });
       }
     },
-    [atlas, language, onUpdateSceneState, sceneState, t.extracting, visMode],
+    [atlas, language, onUpdateSceneState, sceneState, t.extracting],
   );
 
   const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -199,6 +246,7 @@ export default function MedicalReportExplorer({
     if (file) {
       void processReport({ file, filename: file.name });
     }
+    e.target.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -222,40 +270,114 @@ export default function MedicalReportExplorer({
     }
   };
 
+  // Clicking a finding card is the single highlight entry point: pick the
+  // organ, fly the camera to it, and keep the yellow highlight on. Selecting
+  // another card simply moves the highlight — nothing to lock or unlock.
   const handleSelectFinding = (finding: MedicalFinding) => {
     setActiveFindingId(finding.findingId);
 
     if (finding.verifiedTargets.length > 0) {
       const primaryTarget = finding.verifiedTargets[0];
-      const update = anatomyCtrl.current.focusTarget(primaryTarget, sceneState, visMode);
-      onUpdateSceneState(update);
+      const update = isolateMode
+        ? anatomyCtrl.current.isolateTarget(primaryTarget, sceneState)
+        : anatomyCtrl.current.highlightTarget(primaryTarget, sceneState);
+      onUpdateSceneState((current) => ({
+        ...current,
+        ...update,
+      }));
     }
   };
 
   const handleFocusTarget = (target: VerifiedAnatomyTarget, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const update = anatomyCtrl.current.focusTarget(target, sceneState, visMode);
-    onUpdateSceneState(update);
+    const update = isolateMode
+      ? anatomyCtrl.current.isolateTarget(target, sceneState)
+      : anatomyCtrl.current.highlightTarget(target, sceneState);
+    onUpdateSceneState((current) => ({
+      ...current,
+      ...update,
+    }));
+  };
+
+  const handleToggleIsolate = () => {
+    setIsolateMode((prev) => {
+      const next = !prev;
+      // Re-apply the active finding under the new mode so the toggle has an
+      // immediate effect instead of waiting for the next click.
+      const activeFinding = activeReport?.findings.find((f) => f.findingId === activeFindingId);
+      const target = activeFinding?.verifiedTargets[0];
+      if (target) {
+        const update = next
+          ? anatomyCtrl.current.isolateTarget(target, sceneState)
+          : anatomyCtrl.current.highlightTarget(target, sceneState);
+        onUpdateSceneState((current) => ({
+          ...current,
+          ...update,
+        }));
+      } else if (!next) {
+        onUpdateSceneState((current) => ({
+          ...current,
+          isolate: false,
+        }));
+      }
+      return next;
+    });
   };
 
   const handleHighlightAll = () => {
-    if (!reportState.result) return;
-    const allTargets = reportState.result.findings.flatMap((f) => f.verifiedTargets);
-    const update = anatomyCtrl.current.focusAllTargets(allTargets, sceneState, visMode);
-    onUpdateSceneState(update);
-    setActiveFindingId(null);
-  };
+    // Only verified, renderable targets are highlighted; invalid IDs are
+    // ignored. Never report success when zero valid targets resolve.
+    if (!activeReport) return;
+    const allTargets = visualizableFindings.flatMap((f) => f.verifiedTargets);
+    const allPartIds = [
+      ...new Set(allTargets.flatMap((t) => t.partIds).filter((pid) => atlas.parts.some((p) => p.id === pid))),
+    ];
+    if (allPartIds.length === 0) return;
 
-  const handleVisModeChange = (nextMode: AnatomyVisualizationMode) => {
-    setVisMode(nextMode);
-    const update = anatomyCtrl.current.setVisualizationMode(nextMode, sceneState);
-    onUpdateSceneState(update);
+    const update = anatomyCtrl.current.focusAllTargets(allTargets, sceneState);
+    setIsolateMode(false);
+    onUpdateSceneState((current) => ({
+      ...current,
+      ...update,
+    }));
+    setActiveFindingId(null);
   };
 
   const handleResetView = () => {
     const update = anatomyCtrl.current.restoreBaseline(sceneState);
-    onUpdateSceneState(update);
+    setIsolateMode(false);
+    onUpdateSceneState((current) => ({
+      ...current,
+      ...update,
+      pinnedHighlight: [],
+    }));
     setActiveFindingId(null);
+  };
+
+  const handleClearReport = () => {
+    audioCtrl.current.stopSpeaking();
+    audioCtrl.current.stopListening();
+    setIsSpeaking(false);
+    setIsListening(false);
+    setActiveSpeechId(null);
+    setReportState({ status: "idle" });
+    setChatMessages([]);
+    setActiveFindingId(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (anatomyCtrl.current.hasBaseline()) {
+      onUpdateSceneState((current) => ({
+        ...current,
+        ...anatomyCtrl.current.restoreBaseline(current),
+        pinnedHighlight: [],
+      }));
+    } else {
+      onUpdateSceneState((current) => ({
+        ...current,
+        pinnedHighlight: [],
+        selected: [],
+      }));
+    }
+    setActiveTab("upload");
   };
 
   const handleSendMessage = async (customText?: string) => {
@@ -272,7 +394,7 @@ export default function MedicalReportExplorer({
     setChatMessages((prev) => [...prev, userMsg]);
     setChatInput("");
 
-    const reportContext = reportState.result?.extractedText || "";
+    const reportContext = activeReport?.extractedText || "";
     const assistantMsg = await sendChatMessage(
       textToSend,
       reportContext,
@@ -282,15 +404,25 @@ export default function MedicalReportExplorer({
       selectedOrganContext?.partName || null,
       selectedOrganContext?.finding?.term || null,
       sessionId,
+      {
+        contextType: isLocationRequest(textToSend) ? "location" : "report",
+        reportId: activeReport?.reportId,
+        preferredLanguage: language,
+      },
     );
 
     setChatMessages((prev) => [...prev, assistantMsg]);
 
-    // If navigation intent is present, focus the mentioned targets in 3D
-    if (assistantMsg.navigationIntent && assistantMsg.mentionedTargets?.length) {
+    // If navigation intent is present, highlight the mentioned target and fly to it.
+    if (assistantMsg.mentionedTargets?.length) {
       const target = assistantMsg.mentionedTargets[0];
-      const update = anatomyCtrl.current.focusTarget(target, sceneState, visMode);
-      onUpdateSceneState(update);
+      const update = isolateMode
+        ? anatomyCtrl.current.isolateTarget(target, sceneState)
+        : anatomyCtrl.current.highlightTarget(target, sceneState);
+      onUpdateSceneState((current) => ({
+        ...current,
+        ...update,
+      }));
     }
   };
 
@@ -328,18 +460,20 @@ export default function MedicalReportExplorer({
     }
   };
 
-  const handleSpeak = (msgId: string, text: string) => {
-    if (isSpeaking && activeSpeechId === msgId) {
+  // Speech follows the actual response language of the message,
+  // not the currently selected UI language.
+  const handleSpeak = (msg: ChatMessage) => {
+    if (isSpeaking && activeSpeechId === msg.id) {
       audioCtrl.current.stopSpeaking();
       setIsSpeaking(false);
       setActiveSpeechId(null);
       return;
     }
 
-    setActiveSpeechId(msgId);
+    setActiveSpeechId(msg.id);
     setIsSpeaking(true);
 
-    audioCtrl.current.speak(text, language, {
+    audioCtrl.current.speak(msg.text, msg.language ?? language, {
       onEnd: () => {
         setIsSpeaking(false);
         setActiveSpeechId(null);
@@ -445,16 +579,17 @@ export default function MedicalReportExplorer({
       {/* Body Area */}
       <div className="sehatsetu-body">
         {/* Active Report Header if report is loaded */}
-        {reportState.result && (
+        {activeReport && (
           <div className="sehatsetu-active-report-bar">
-            <div className="sehatsetu-report-name" title={reportState.result.filename}>
+            <div className="sehatsetu-report-name" title={activeReport.filename}>
               <FileText size={14} />
-              <span>{reportState.result.filename}</span>
+              <span>{activeReport.filename}</span>
             </div>
             <button
               type="button"
               className="text-xs text-blue-700 hover:underline bg-transparent border-0 cursor-pointer p-0"
-              onClick={() => setActiveTab("upload")}
+              onClick={handleClearReport}
+              title="Clear current report and load or upload a new one"
             >
               {t.clearReport}
             </button>
@@ -462,25 +597,17 @@ export default function MedicalReportExplorer({
         )}
 
         {/* 3D Anatomy Viewport Toolbar (Visible when findings are present) */}
-        {reportState.result && reportState.result.findings.length > 0 && (
+        {activeReport && visualizableFindings.length > 0 && (
           <div className="sehatsetu-viewer-toolbar" aria-label="Anatomical visualization controls">
             <button
               type="button"
-              className={`sehatsetu-toolbar-btn ${visMode === "highlight" ? "active" : ""}`}
-              onClick={() => handleVisModeChange("highlight")}
-              title="Highlight target anatomy while keeping other structures visible"
+              className={`sehatsetu-toolbar-btn ${isolateMode ? "active" : ""}`}
+              onClick={handleToggleIsolate}
+              title={isolateMode ? "Show all anatomy again" : "Hide surrounding anatomy and zoom in on the highlighted organ"}
+              aria-pressed={isolateMode}
             >
-              <Eye size={12} />
-              <span>Highlight Only</span>
-            </button>
-            <button
-              type="button"
-              className={`sehatsetu-toolbar-btn ${visMode === "isolate" ? "active" : ""}`}
-              onClick={() => handleVisModeChange("isolate")}
-              title="Isolate target anatomy and dim/hide unrelated structures"
-            >
-              <Layers size={12} />
-              <span>{t.isolate}</span>
+              {isolateMode ? <Eye size={12} /> : <Layers size={12} />}
+              <span>{isolateMode ? t.surroundings : t.isolate}</span>
             </button>
             <button
               type="button"
@@ -532,32 +659,72 @@ export default function MedicalReportExplorer({
               </div>
             ) : (
               <div className="sehatsetu-findings-list">
-                {selectedOrganContext && !selectedOrganContext.finding && (
-                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center justify-between mb-1">
-                    <div>
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Sparkles size={13} className="text-amber-600" />
-                        <span>3D Selected: {selectedOrganContext.partName}</span>
+                {/* 3D Clicked Organ Context Card Grounded in Report */}
+                {selectedOrganContext && (
+                  <div className={`sehatsetu-inspected-card ${selectedOrganContext.finding ? "has-finding" : "reference"}`}>
+                    <div className="sehatsetu-inspected-header">
+                      <div className="sehatsetu-inspected-title">
+                        <Sparkles size={14} className={selectedOrganContext.finding ? "text-amber-500" : "text-blue-500"} />
+                        <span>3D Inspected: {selectedOrganContext.partName}</span>
                       </div>
-                      <p className="text-[11px] text-amber-800 m-0 mt-0.5">
-                        Reference anatomical structure. No abnormal findings noted for this organ in the report.
-                      </p>
+                      <span className={`sehatsetu-status-badge ${selectedOrganContext.finding ? (selectedOrganContext.finding.negation === "ruled_out" ? "ruled_out" : "confirmed") : "confirmed"}`}>
+                        {selectedOrganContext.finding
+                          ? selectedOrganContext.finding.negation === "ruled_out"
+                            ? "Ruled Out in Report"
+                            : `${selectedOrganContext.finding.term} (In Report)`
+                          : "Reference Anatomy (Normal)"}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      className="sehatsetu-focus-btn text-[11px] py-1 px-2.5 ml-2 shrink-0"
-                      onClick={() => {
-                        setActiveTab("chat");
-                        void handleSendMessage(`Explain what the ${selectedOrganContext.partName} does and whether it is normal in my report`);
-                      }}
-                    >
-                      Ask AI
-                    </button>
+
+                    {selectedOrganContext.finding ? (
+                      <div className="text-xs text-slate-700 flex flex-col gap-1">
+                        <p className="m-0 font-medium">
+                          {selectedOrganContext.finding.observation || selectedOrganContext.finding.explanation}
+                        </p>
+                        {selectedOrganContext.finding.measurement && (
+                          <div className="text-[11px] font-semibold text-amber-900 bg-amber-100/80 inline-block px-1.5 py-0.5 rounded w-fit">
+                            Measurement: {selectedOrganContext.finding.measurement.value} {selectedOrganContext.finding.measurement.unit}
+                          </div>
+                        )}
+                        {selectedOrganContext.finding.condition && (
+                          <div className="text-[11px] text-slate-500">
+                            Diagnosis / Condition: <em>{selectedOrganContext.finding.condition}</em>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-600 m-0">
+                        Normal reference anatomical structure in 3D atlas. No abnormalities or clinical findings identified for this organ in your uploaded medical report.
+                      </p>
+                    )}
+
+                    <div className="sehatsetu-inspected-actions">
+                      <button
+                        type="button"
+                        className="sehatsetu-focus-btn text-xs"
+                        onClick={() => {
+                          setActiveTab("chat");
+                          void handleSendMessage(
+                            selectedOrganContext.finding
+                              ? `Explain what my medical report states about the ${selectedOrganContext.partName} and the finding: ${selectedOrganContext.finding.term}`
+                              : `Explain the anatomical role of the ${selectedOrganContext.partName} and verify whether it was mentioned in my report`,
+                          );
+                        }}
+                      >
+                        <Bot size={13} />
+                        <span>Ask AI about {selectedOrganContext.partName}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
-                {reportState.result.findings.map((f) => (
+
+                {visualizableFindings.map((f) => (
                   <article
                     key={f.findingId}
+                    ref={(el) => {
+                      if (el) findingCardsRef.current.set(f.findingId, el);
+                      else findingCardsRef.current.delete(f.findingId);
+                    }}
                     className={`sehatsetu-finding-card ${activeFindingId === f.findingId ? "active-target" : ""}`}
                     onClick={() => handleSelectFinding(f)}
                   >
@@ -610,15 +777,68 @@ export default function MedicalReportExplorer({
                         <button
                           type="button"
                           className="sehatsetu-focus-btn"
-                          onClick={(e) => handleFocusTarget(f.verifiedTargets[0], e)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // One action: isolate the organ in 3D AND open the
+                            // chat already scoped to this finding's context.
+                            const primaryTarget = f.verifiedTargets[0];
+                            const update = anatomyCtrl.current.isolateTarget(primaryTarget, sceneState);
+                            onUpdateSceneState((current) => ({
+                              ...current,
+                              ...update,
+                            }));
+                            setIsolateMode(true);
+                            setActiveFindingId(f.findingId);
+                            setFindingChatOpenId(f.findingId);
+                          }}
                         >
-                          <Eye size={12} />
+                          <Layers size={12} />
                           <span>{t.locateIn3D}</span>
                         </button>
                       )}
+                      {/* Per-finding contextual AI chat with voice (own history, own language) */}
+                      <ScopedChat
+                        className="sehatsetu-finding-ask"
+                        atlas={atlas}
+                        scoped={{
+                          contextType: "finding",
+                          reportId: activeReport?.reportId,
+                          findingId: f.findingId,
+                          findingTerm: f.term,
+                          findingEvidence: f.source.evidenceText || f.reportPhrase,
+                          findingExplanation: f.explanation,
+                          findingCondition: f.condition,
+                          findingCertainty: `${f.negation} / ${f.certainty}`,
+                          findingMeasurement: f.measurement
+                            ? `${f.measurement.value} ${f.measurement.unit}`
+                            : undefined,
+                          findingPage: f.source.page,
+                          verifiedStructureIds: f.verifiedTargets.flatMap((t) => t.partIds).slice(0, 24),
+                          preferredLanguage: language,
+                        }}
+                        reportContext={activeReport?.extractedText ?? ""}
+                        language={language}
+                        label={t.askAi}
+                        placeholder={t.findingChatPlaceholder}
+                        open={findingChatOpenId === f.findingId}
+                        onOpenChange={(open) => setFindingChatOpenId(open ? f.findingId : null)}
+                      />
                     </div>
                   </article>
                 ))}
+
+                {/* Section 9: findings without a verified 3D target in the loaded
+                    model are kept in data, never assigned fake meshes, and are
+                    surfaced only as this concise note. */}
+                {notVisualizableFindings.length > 0 && (
+                  <div className="sehatsetu-unavailable-note">
+                    <AlertCircle size={12} className="shrink-0" />
+                    <span>
+                      {t.notVisualizable} ({notVisualizableFindings.length}):{" "}
+                      {notVisualizableFindings.map((f) => f.reportPhrase?.trim() || f.term).join(" · ")}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -644,7 +864,7 @@ export default function MedicalReportExplorer({
                         <button
                           type="button"
                           className="sehatsetu-audio-btn"
-                          onClick={() => handleSpeak(msg.id, msg.text)}
+                          onClick={() => handleSpeak(msg)}
                           title={isSpeaking && activeSpeechId === msg.id ? t.stopSpeaking : t.speakResponse}
                           aria-label={isSpeaking && activeSpeechId === msg.id ? t.stopSpeaking : t.speakResponse}
                         >

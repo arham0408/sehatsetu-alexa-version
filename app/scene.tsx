@@ -593,6 +593,7 @@ export default function AnatomyScene({
       const changed =
         lastState?.visible !== s.visible ||
         lastState?.selected !== s.selected ||
+        lastState?.pinnedHighlight !== s.pinnedHighlight ||
         lastState?.isolate !== s.isolate ||
         lastState?.partVisibility !== s.partVisibility;
       if (changed) {
@@ -607,7 +608,7 @@ export default function AnatomyScene({
       if (changed) {
         selectedKey = s.selected.join(",");
         const visible = new Set(s.visible),
-          selection = new Set(s.selected);
+          selection = new Set([...s.selected, ...(s.pinnedHighlight ?? [])]);
         activeParts = [];
         selectedIndices = [];
         hasSolidParts = false;
@@ -843,15 +844,20 @@ export default function AnatomyScene({
       controls.touches.ONE = amount < 0.8 ? T.TOUCH.ROTATE : T.TOUCH.PAN;
       markers.visible = amount > 0.75;
       // Selected anatomy shows with warm yellow highlight and persists across normal, exploded, and isolated states.
-      const highlightKey = ready && s.selected.length > 0 ? selectedKey : "";
+      // pinnedHighlight (from SehatSetu) is shown alongside selected, allowing both to coexist.
+      const pinnedIds = s.pinnedHighlight ?? [];
+      const combinedHighlightIds = [...new Set([...s.selected, ...pinnedIds])];
+      const highlightKey =
+        ready && combinedHighlightIds.length > 0 ? combinedHighlightIds.join(",") : "";
       if (highlightKey !== contextHighlightKey) {
         // Clear previous highlight objects without disposing pickers[i].geometry (which is shared)
         contextHighlight.clear();
-        if (highlightKey)
-          selectedIndices.forEach((i) => {
-            if (!pickers[i]) return;
+        if (highlightKey) {
+          const highlightSet = new Set(combinedHighlightIds);
+          atlas.parts.forEach((p, i) => {
+            if (!pickers[i] || !highlightSet.has(p.id)) return;
             // Preserve normal lighting and self-occlusion with distinct yellow accent
-            const system = atlas.parts[i].system;
+            const system = p.system;
             let material = contextHighlightMaterials.get(system);
             if (!material) {
               material = createLocateMaterial(mats.get(system)!, "#facc15");
@@ -861,14 +867,20 @@ export default function AnatomyScene({
             const mesh = new T.Mesh(pickers[i]!.geometry, material);
             mesh.userData.part = i;
             mesh.layers.set(1);
+            mesh.position.set(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+            mesh.updateMatrix();
+            mesh.updateMatrixWorld(true);
             contextHighlight.add(mesh);
           });
+        }
         contextHighlightKey = highlightKey;
         dirty = true;
       }
       contextHighlight.children.forEach((mesh) => {
         const i = mesh.userData.part as number;
         mesh.position.set(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+        mesh.updateMatrix();
+        mesh.updateMatrixWorld(true);
       });
       const rotationSpeed = T.MathUtils.clamp(s.rotationSpeed ?? DEFAULT_ROTATION_SPEED, MIN_ROTATION_SPEED, MAX_ROTATION_SPEED);
       controls.autoRotate = s.rotate && ready && activeParts.length > 0 && controls.enableRotate;

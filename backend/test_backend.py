@@ -31,8 +31,16 @@ KIDNEYS: Left and right kidneys are normal. No renal calculus or hydronephrosis.
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     data = res.json()
     assert len(data["findings"]) >= 2
-    terms = [f["term"].lower() for f in data["findings"]]
-    assert any("gall" in t for t in terms), "Gallbladder finding must be present"
+    # The same gallbladder finding may be labeled with any valid clinical term
+    # ("gallbladder", "gallstones", or the clinical "cholelithiasis"), so match
+    # across both term and condition rather than one brittle substring.
+    labels = [
+        (f.get("term", "") + " " + (f.get("condition") or "")).lower()
+        for f in data["findings"]
+    ]
+    assert any(
+        ("gall" in t) or ("cholelith" in t) for t in labels
+    ), f"Gallbladder/cholelithiasis finding must be present; got labels: {labels}"
     print(f"Analyze text passed: {len(data['findings'])} findings extracted.")
 
 def test_analyze_pdf_upload():

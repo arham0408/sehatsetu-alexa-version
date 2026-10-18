@@ -45,6 +45,10 @@ export interface I18nDictionary {
   backendOffline: string;
   voiceUnavailable: string;
   micDenied: string;
+  askAi: string;
+  findingChatPlaceholder: string;
+  structureChatPlaceholder: string;
+  notVisualizable: string;
   structureUnavailable: string;
 }
 
@@ -95,6 +99,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI server unavailable — using verified deterministic anatomy matching",
     voiceUnavailable: "Voice recognition is not supported in this browser. Please type your query.",
     micDenied: "Microphone permission was denied. You can continue using keyboard input.",
+    askAi: "Ask AI",
+    findingChatPlaceholder: "Ask about this finding (explain simply, what does it mean?)...",
+    structureChatPlaceholder: "Ask about this structure (role, related organs, conditions)...",
+    notVisualizable: "Not visualizable in this model",
     structureUnavailable: "This structure is not present in the currently loaded anatomy model.",
   },
   hi: {
@@ -143,6 +151,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI सर्वर अनुपलब्ध — स्थानीय सत्यापित मैपिंग का उपयोग किया जा रहा है",
     voiceUnavailable: "इस ब्राउज़र में आवाज़ पहचान समर्थित नहीं है। कृपया टाइप करें।",
     micDenied: "माइक्रोफोन की अनुमति अस्वीकृत हुई। आप टाइप कर सकते हैं।",
+    askAi: "AI से पूछें",
+    findingChatPlaceholder: "इस निष्कर्ष के बारे में पूछें (आसान भाषा में समझाएं)…",
+    structureChatPlaceholder: "इस अंग के बारे में पूछें (कार्य, संबंधित अंग, स्थितियाँ)…",
+    notVisualizable: "इस मॉडल में दिखाना संभव नहीं",
     structureUnavailable: "यह अंग वर्तमान 3D मॉडल में उपलब्ध नहीं है।",
   },
   bn: {
@@ -191,6 +203,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI সার্ভার অফলাইন — স্থানীয় যাচাইকৃত ম্যাপিং সক্রিয়",
     voiceUnavailable: "এই ব্রাউজারে ভয়েস সাপোর্ট নেই। দয়া করে টাইপ করুন।",
     micDenied: "মাইক্রোফোন অনুমতি মেলেনি। টাইপ করুন।",
+    askAi: "AI-কে জিজ্ঞাসা করুন",
+    findingChatPlaceholder: "এই নিষ্কর্ষটি সম্পর্কে জিজ্ঞাসা করুন (সহজ ভাষায় ব্যাখ্যা)…",
+    structureChatPlaceholder: "এই অঙ্গ সম্পর্কে জিজ্ঞাসা করুন (কাজ, সম্পর্কিত অঙ্গ, অবস্থা)…",
+    notVisualizable: "এই মডেলে দেখানো সম্ভব নয়",
     structureUnavailable: "এই অঙ্গটি বর্তমান 3D মডেলে উপলব্ধ নেই।",
   },
   te: {
@@ -239,6 +255,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI సర్వర్ అందుబాటులో లేదు — స్థానిక మ్యాపింగ్ ఉపయోగించబడుతోంది",
     voiceUnavailable: "ఈ బ్రౌజర్‌లో వాయిస్ రికగ్నిషన్ లేదు. దయచేసి టైప్ చేయండి.",
     micDenied: "మైక్రోఫోన్ అనుమతి రద్దయింది.",
+    askAi: "AI ని అడగండి",
+    findingChatPlaceholder: "ఈ ఫిండింగ్ గురించి అడగండి (సులభంగా వివరించండి)…",
+    structureChatPlaceholder: "ఈ అవయవం గురించి అడగండి (పని, సంబంధిత అవయవాలు, పరిస్థితులు)…",
+    notVisualizable: "ఈ మోడల్‌లో చూపించలేము",
     structureUnavailable: "ఈ అవయవం ప్రస్తుత 3D మోడల్‌లో లేదు.",
   },
   mr: {
@@ -287,6 +307,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI सर्व्हर ऑफलाइन — स्थानिक पडताळणी वापरली जात आहे",
     voiceUnavailable: "या ब्राउझरमध्ये व्हॉइस इनपुट समर्थित नाही. कृपया टाईप करा.",
     micDenied: "मायक्रोफोन परवानगी नाकारली गेली आहे.",
+    askAi: "AI ला विचारा",
+    findingChatPlaceholder: "या निष्कर्षाविषयी विचारा (सोप्या भाषेत सांगा)…",
+    structureChatPlaceholder: "या अवयवाविषयी विचारा (कार्य, संबंधित अवयव, स्थिती)…",
+    notVisualizable: "या मॉडेलमध्ये दाखवता येत नाही",
     structureUnavailable: "हा अवयव सध्याच्या 3D मॉडेलमध्ये उपलब्ध नाही.",
   },
   ta: {
@@ -335,6 +359,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI சர்வர் இல்லை — உள்ளூர் சரிபார்ப்பு முறையில் இயங்குகிறது",
     voiceUnavailable: "இந்த உலாவியில் குரல் உள்ளீடு ஆதரிக்கப்படவில்லை.",
     micDenied: "மைக்ரோஃபோன் அனுமதி மறுக்கப்பட்டது.",
+    askAi: "AI இடம் கேளுங்கள்",
+    findingChatPlaceholder: "இந்த கண்டுபிடிப்பு பற்றி கேளுங்கள் (எளிமையாக விளக்குங்கள்)…",
+    structureChatPlaceholder: "இந்த உறுப்பு பற்றி கேளுங்கள் (செயல்பாடு, தொடர்புடைய உறுப்புகள்)…",
+    notVisualizable: "இந்த மாதிரியில் காட்ட முடியாது",
     structureUnavailable: "இந்த உறுப்பு தற்போதைய 3D மாதிரியில் இல்லை.",
   },
   gu: {
@@ -383,6 +411,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI સર્વર ઉપલબ્ધ નથી — સ્થાનિક મેપિંગ સક્રિય છે",
     voiceUnavailable: "આ બ્રાઉઝરમાં અવાજ સપોર્ટ નથી.",
     micDenied: "માઇક્રોફોન પરવાનગી નકારી.",
+    askAi: "AI ને પૂછો",
+    findingChatPlaceholder: "આ નિષ્કર્ષ વિશે પૂછો (સરળ ભાષામાં સમજાવો)…",
+    structureChatPlaceholder: "આ અંગ વિશે પૂછો (કાર્ય, સંબંધિત અંગો, સ્થિતિઓ)…",
+    notVisualizable: "આ મોડલમાં બતાવી શકાતું નથી",
     structureUnavailable: "આ અંગ વર્તમાન 3D મૉડલમાં ઉપલબ્ધ નથી.",
   },
   kn: {
@@ -431,6 +463,10 @@ export const TRANSLATIONS: Record<IndianLanguageCode, I18nDictionary> = {
     backendOffline: "AI ಸರ್ವರ್ ಲಭ್ಯವಿಲ್ಲ — ಸ್ಥಳೀಯ ಮ್ಯಾಪಿಂಗ್ ಬಳಸಲಾಗುತ್ತಿದೆ",
     voiceUnavailable: "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಬೆಂಬಲವಿಲ್ಲ.",
     micDenied: "ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ.",
+    askAi: "AI ಯನ್ನು ಕೇಳಿ",
+    findingChatPlaceholder: "ಈ ಫೈಂಡಿಂಗ್ ಬಗ್ಗೆ ಕೇಳಿ (ಸರಳವಾಗಿ ವಿವರಿಸಿ)…",
+    structureChatPlaceholder: "ಈ ಅಂಗದ ಬಗ್ಗೆ ಕೇಳಿ (ಕಾರ್ಯ, ಸಂಬಂಧಿತ ಅಂಗಗಳು, ಸ್ಥಿತಿಗಳು)…",
+    notVisualizable: "ಈ ಮಾದರಿಯಲ್ಲಿ ತೋರಿಸಲಾಗುವುದಿಲ್ಲ",
     structureUnavailable: "ಈ ಅಂಗವು ಪ್ರಸ್ತುತ 3D ಮಾದರಿಯಲ್ಲಿ ಲಭ್ಯವಿಲ್ಲ.",
   },
 };

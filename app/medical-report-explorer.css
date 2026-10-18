@@ -300,6 +300,67 @@
   border-color: #2563eb;
 }
 
+.sehatsetu-toolbar-btn.highlight-active {
+  background: #fef08a;
+  color: #854d0e;
+  border-color: #ca8a04;
+  box-shadow: 0 0 0 1px #ca8a04;
+  font-weight: 700;
+}
+
+/* Inspected Organ Card (3D click grounded in report) */
+.sehatsetu-inspected-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.sehatsetu-inspected-card.has-finding {
+  border-color: #f59e0b;
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  box-shadow: 0 4px 16px -2px rgba(245, 158, 11, 0.2);
+}
+
+.sehatsetu-inspected-card.reference {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+}
+
+.sehatsetu-inspected-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sehatsetu-inspected-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sehatsetu-inspected-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sehatsetu-inspected-actions button {
+  flex: 1;
+  justify-content: center;
+}
+
 /* Finding Cards */
 .sehatsetu-findings-list {
   display: flex;
@@ -616,4 +677,185 @@
 
 .sehatsetu-context-pill-btn:hover {
   background: #d97706;
+}
+
+/* Scoped contextual chat (per finding card / per structure panel) */
+.sehatsetu-scoped-chat {
+  margin-top: 6px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sehatsetu-scoped-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.sehatsetu-scoped-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sehatsetu-scoped-collapse {
+  border: none;
+  background: transparent;
+  color: #1e40af;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+}
+
+.sehatsetu-scoped-collapse:hover {
+  background: #dbeafe;
+}
+
+.sehatsetu-scoped-lang {
+  font-size: 10px;
+  padding: 3px 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #334155;
+  align-self: flex-start;
+}
+
+.sehatsetu-scoped-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.sehatsetu-scoped-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.sehatsetu-scoped-msg.user {
+  flex-direction: row-reverse;
+}
+
+.sehatsetu-scoped-text {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  white-space: pre-wrap;
+  max-width: 92%;
+}
+
+.sehatsetu-scoped-msg.user .sehatsetu-scoped-text {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+.sehatsetu-scoped-speak {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.sehatsetu-scoped-speak:hover {
+  background: #dbeafe;
+}
+
+.sehatsetu-scoped-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.sehatsetu-scoped-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  padding: 5px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.sehatsetu-scoped-input:focus {
+  border-color: #2563eb;
+}
+
+.sehatsetu-scoped-mic,
+.sehatsetu-scoped-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sehatsetu-scoped-mic:hover,
+.sehatsetu-scoped-send:hover {
+  background: #eff6ff;
+}
+
+.sehatsetu-scoped-mic.listening {
+  border-color: #dc2626;
+  color: #dc2626;
+  animation: pulse-red 1.2s infinite;
+}
+
+.sehatsetu-scoped-send:disabled,
+.sehatsetu-scoped-mic:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sehatsetu-finding-ask.sehatsetu-scoped-chat,
+.sehatsetu-finding-ask.sehatsetu-scoped-chat-launcher {
+  margin-top: 0;
+}
+
+/* Findings that have no verified 3D target in the loaded model */
+.sehatsetu-unavailable-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 9px;
 }

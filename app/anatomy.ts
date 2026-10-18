@@ -26,7 +26,7 @@ export const MIN_ROTATION_SPEED = 1;
 export const MAX_ROTATION_SPEED = 10;
 export const DEFAULT_ROTATION_SPEED = 5;
 export interface CameraPose {position:[number,number,number];target:[number,number,number];offset:[number,number];viewport?:[number,number]}
-export interface SceneState {inspectorOpen?:boolean;explode:number;visible:SystemId[];selected:string[];isolate:boolean;view:View;rotate:boolean;reset:number;focus?:number;focusContext?:boolean;partVisibility?:Record<string,boolean>;opacity?:Partial<Record<SystemId,number>>;camera?:CameraPose;rotationSpeed?:number;rotationDirection?:'clockwise'|'counterclockwise'}
+export interface SceneState {inspectorOpen?:boolean;explode:number;visible:SystemId[];selected:string[];pinnedHighlight?:string[];isolate:boolean;view:View;rotate:boolean;reset:number;focus?:number;focusContext?:boolean;partVisibility?:Record<string,boolean>;opacity?:Partial<Record<SystemId,number>>;camera?:CameraPose;rotationSpeed?:number;rotationDirection?:'clockwise'|'counterclockwise'}
 export const DEFAULT_VISIBLE:SystemId[] = ['cardiac','sensory','skeletal','muscular','arterial','venous','nervous','respiratory','digestive','urinary','lymphatic','endocrine','reproductive','mammary','integumentary','connective'];
 const ILIOTIBIAL_DESCRIPTION = 'A thickened band of deep fascia (fascia lata) along the outer thigh. It receives fibers from tensor fasciae latae and gluteus maximus, with connections to the femur and an attachment on the upper outer tibia.';
 export const EXPLANATIONS:Record<string,string> = {
