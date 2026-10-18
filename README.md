@@ -2,7 +2,7 @@
 
 <img src="public/favicon.svg" alt="Human Atlas + app icon" width="160" height="160" />
 
-# Human Atlas + × SehatSetu
+#SehatSetu
 
 <p>
   <a href="https://github.com/llm-junkie/ha/actions/workflows/deploy-pages.yml"><img src="https://github.com/llm-junkie/ha/actions/workflows/deploy-pages.yml" alt="Deploy to GitHub Pages" /></a>
