@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="public/favicon.svg" alt="Human Atlas + app icon" width="160" height="160" />
+<img src="public/favicon.svg" alt="SehatSetu app icon" width="160" height="160" />
 
-#SehatSetu
+# SehatSetu
 
 <p>
   <a href="https://github.com/llm-junkie/ha/actions/workflows/deploy-pages.yml"><img src="https://github.com/llm-junkie/ha/actions/workflows/deploy-pages.yml" alt="Deploy to GitHub Pages" /></a>
@@ -11,7 +11,7 @@
   <a href="#install-and-use-offline"><img src="https://img.shields.io/badge/PWA-offline--ready-887454" alt="PWA: offline-ready" /></a>
 </p>
 
-Interactive 3D anatomy for phones, tablets and desktops — now with **SehatSetu**, a
+Interactive 3D anatomy for phones, tablets and desktops, with **SehatSetu** — a
 multilingual medical-report explorer that maps extracted clinical findings to verified
 3D structures and answers questions by voice in the user's language.
 
@@ -32,7 +32,7 @@ Installation: [iPhone / iPad](#install-on-iphone-or-ipad) · [Mac](#install-on-m
 3. [Setup and commands](#setup-and-commands)
 4. [Environment variables](#environment-variables)
 5. [Project structure](#project-structure)
-6. [Viewer features (Human Atlas+)](#viewer-features-human-atlas)
+6. [Viewer features](#viewer-features)
 7. [SehatSetu: medical report explorer](#sehatsetu-medical-report-explorer)
    - [PDF upload and report analysis](#pdf-upload-and-report-analysis)
    - [Clinical finding cards](#clinical-finding-cards)
@@ -57,11 +57,11 @@ Installation: [iPhone / iPad](#install-on-iphone-or-ipad) · [Mac](#install-on-m
 
 ## Overview
 
-Human Atlas+ is an offline-capable PWA anatomy explorer built on React + Three.js.
+SehatSetu is an offline-capable PWA anatomy explorer built on React + Three.js.
 Male (BodyParts3D + Z-Anatomy) and experimental female (BodyParts3D + HRA + Z-Anatomy)
 models contain thousands of individually selectable meshes with named concepts.
 
-**SehatSetu** ("health helpdesk") extends the atlas with a medical-report surface:
+**SehatSetu** ("health helpdesk") adds a medical-report surface on top of the 3D atlas:
 
 - Upload a PDF / paste or load sample clinical reports.
 - Deterministic + Groq-LLM extraction into structured findings (negation, laterality,
@@ -160,9 +160,9 @@ data/                       Source conversion inputs
 docs/                       Model notes (female model, skin, nerves, classification)
 ```
 
-## Viewer features (Human Atlas+)
+## Viewer features
 
-All viewer behavior below is unchanged by SehatSetu:
+All viewer behavior below is unchanged by the medical-report features:
 
 - **Orbit / zoom / pan** — OrbitControls with damped rotation, cursor-anchored zoom,
   body-anchored pan; right-drag/one-finger pan in the exploded inventory.
@@ -599,11 +599,11 @@ Voice recognition/TTS depend on the OS/browser voices present.
   SehatSetu mapping needs no changes because it resolves against the loaded atlas.
 
 The optional WebMCP tools (`agent-tools.ts`) expose anatomy search/inspection in
-compatible browsers, independent of SehatSetu.
+compatible browsers, independent of the medical-report features.
 
 ---
 
-# Human Atlas + (base project documentation)
+# Anatomy viewer, data and installation
 
 Built with React, Three.js, and shadcn/ui. The **male reference** includes 2,444 selectable meshes, 15 systems, and 3,645 concepts; the **experimental female study model** includes 2,456 meshes, 16 systems, and 4,462 concepts. Both include spinal and peripheral neural structures from Z-Anatomy.
 
@@ -635,7 +635,7 @@ The anatomy uses adapted BodyParts3D, HRA, and Z-Anatomy data; see [Credits](#cr
 - Move from assembled anatomy to a spaced inventory with the explode slider; ticks at 45% and 79%; **Reset** restores the view.
 - Search anatomical names, source identifiers, and muscle groups (quads, hamstrings, calves, glutes). Reopen recent selections and smoothly locate or isolate structures.
 - Save named views on your device, or share URLs that restore the camera, selection, layers, and explosion state. Up to 20 bookmarks per model.
-- Install the atlas on your home screen or desktop and explore the complete model offline.
+- Install the app on your home screen or desktop and explore the complete model offline.
 
 Selection preserves each structure's original hue, doubles its saturation (up to 100%), and reduces its lightness by 25%, so white and gray structures also stand out. **Locate** reveals selected structures through surrounding anatomy while preserving their lighting and detail. **Isolate** shows original colors; **Surroundings** restores the highlight. Closing the detail panel clears the selection and its highlight.
 
@@ -644,19 +644,19 @@ Selection preserves each structure's original hue, doubles its saturation (up to
 Open the published site, choose the **information button** or **Install app**, then follow the platform prompts below. Stay connected until the panel confirms **Ready offline** — the app saves its interface, both catalogues and all 38 model chunks automatically (about 78.5 MB compressed combined). Once ready, atlas browsing, search, layers, saved views, and view links work without a connection. Use **Update** to apply new releases; content hashes keep each catalogue and its geometry together.
 
 ### Install on iPhone or iPad
-Open [the atlas](https://llm-junkie.github.io/ha/) in **Safari** → **Share → Add to Home Screen** → **Add**.
+Open [the app](https://llm-junkie.github.io/ha/) in **Safari** → **Share → Add to Home Screen** → **Add**.
 
 ### Install on Mac
-On **macOS 14+**, open the atlas in **Safari** → **File → Add to Dock** → **Add**.
+On **macOS 14+**, open the app in **Safari** → **File → Add to Dock** → **Add**.
 
 ### Install on Android
-Open the atlas in **Chrome** and use **Install Human Atlas +**, or **⋮ → Install**.
+Open the app in **Chrome** and use **Install SehatSetu**, or **⋮ → Install**.
 
 ### Install on Windows
-Open the atlas in **Edge** or **Chrome** and use **Install Human Atlas +** in the atlas or the address bar icon.
+Open the app in **Edge** or **Chrome** and use **Install SehatSetu** in the app or the address bar icon.
 
 ### Install on Linux
-Open the atlas in **Chrome** and use **Install Human Atlas +** or **⋮ → Cast, save, and share → Install page as app**.
+Open the app in **Chrome** and use **Install SehatSetu** or **⋮ → Cast, save, and share → Install page as app**.
 
 ## App version
 
