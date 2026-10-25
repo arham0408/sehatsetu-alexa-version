@@ -4,6 +4,8 @@ The workflow [deploy-pages.yml](../../.github/workflows/deploy-pages.yml) valida
 
 The October 25 run for commit `0b28faa` passed dependency installation, TypeScript, lint, and all 125 project tests. It then failed at **Configure Pages** because this private repository had no configured GitHub Pages site. That run never reached the browser checks or deployment.
 
+The follow-up browser run also exposed retained GPU buffers after closing a located anatomy selection and stale test selectors from the older header layout. Dropped highlights now release their individual GPU buffers while keeping CPU geometry available for raycasting and later re-selection. The browser regression revisits the same organ to check that reuse still works. The offline test now uses the current About button and dashboard model-count label. No browser checks were removed.
+
 ## Current behavior
 
 1. Install dependencies, check types, lint, and run project tests.

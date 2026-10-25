@@ -23,5 +23,5 @@ Reproduction commands and environment setup are in the [README](../../README.md#
 - No authenticated Groq call was made. Live model quality, translation quality, latency, and model availability remain to be checked with the team's own key.
 - Microphone capture, physical speakers, multilingual voice quality, and physical-device pairing were not tested. Automated browser input is typed.
 - No live Echo/Alexa+ integration, AWS service, cloud deployment, or marketplace connection was tested or claimed.
-- The existing full WebKit/viewer lifecycle suite was not rerun; the new integration check uses Chromium, and the atlas validation/unit tests passed.
+- The initial companion implementation check used Chromium. The subsequent [CI follow-up](CI.md) also runs the full Chromium viewer lifecycle suite and corrects GPU cleanup and stale layout selectors. WebKit remains unverified in this pass.
 - Passing tests does not establish clinical accuracy, production security, competition eligibility, or correctness of the already-submitted video.

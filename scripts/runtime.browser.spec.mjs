@@ -146,7 +146,9 @@ test('Locate releases individual GPU buffers when the selection closes', async (
   await ready(page);
   const buffers = () => page.evaluate(() => window.__renderAudit.contexts.at(-1).buffers);
   const baseline = await buffers();
-  for (const name of ['heart', 'brain', 'liver']) {
+  // Revisit an organ to verify disposed GPU buffers can be uploaded again while
+  // the CPU geometry remains available for picking and repeated selections.
+  for (const name of ['heart', 'brain', 'liver', 'heart']) {
     await page.getByRole('button', { name: 'Search anatomy', exact: true }).click();
     await page.getByRole('combobox').fill(name);
     await page.getByRole('option', { name: new RegExp(`^${name} \\d+ pieces?$`, 'i') }).click();
@@ -218,7 +220,7 @@ test('both saved models reopen when the origin server is unavailable', async ({ 
     const page = await context.newPage();
     await page.goto('./');
     await ready(page);
-    await page.getByRole('button', { name: 'About this atlas', exact: true }).click();
+    await page.getByRole('button', { name: 'About the atlas & sources', exact: true }).click();
     await expect(page.locator('.pwa-offline')).toContainText('Ready offline', { timeout: 90_000 });
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
     await stop();

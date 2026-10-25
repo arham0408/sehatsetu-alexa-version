@@ -808,10 +808,18 @@ export default function AnatomyScene({
       const highlightKey =
         ready && combinedHighlightIds.length > 0 ? combinedHighlightIds.join(",") : "";
       if (highlightKey !== contextHighlightKey) {
-        // Clear previous highlight objects without disposing pickers[i].geometry (which is shared)
+        const highlightSet = new Set(combinedHighlightIds);
+        // Individual picker geometry is uploaded only for the highlight pass.
+        // Dispose dropped highlights to release their GPU buffers. Geometry.dispose()
+        // keeps CPU attributes intact for raycasting and a later selection re-upload;
+        // the main anatomy batches own separate merged geometry.
+        contextHighlight.children.forEach((object) => {
+          if (object instanceof T.Mesh && !highlightSet.has(atlas.parts[object.userData.part]?.id)) {
+            object.geometry.dispose();
+          }
+        });
         contextHighlight.clear();
         if (highlightKey) {
-          const highlightSet = new Set(combinedHighlightIds);
           atlas.parts.forEach((p, i) => {
             if (!pickers[i] || !highlightSet.has(p.id)) return;
             // Preserve normal lighting and self-occlusion with distinct yellow accent
