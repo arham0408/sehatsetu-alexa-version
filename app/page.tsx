@@ -1,5 +1,6 @@
 import { flushSync } from "react-dom";
 import "./view-library.css";
+import StudioDashboard from "./studio-dashboard";
 import { assetUrl } from "./asset-url";
 import { usePanelViewport } from "./use-panel-viewport";
 import {
@@ -191,7 +192,7 @@ export default function Home() {
     [panel, setPanel] = useState<"layers" | "search" | "saved" | "share" | null>(null),
     [details, setDetails] = useState(false),
     [about, setAbout] = useState(false),
-    [sehatSetuOpen, setSehatSetuOpen] = useState(false),
+    [sehatSetuOpen, setSehatSetuOpen] = useState(() => new URLSearchParams(location.search).has("demo")),
     [query, setQuery] = useState(""),
     [chosen, setChosen] = useState<SearchConcept | null>(null);
   const [systemsPinned, setSystemsPinned] = useState(() => {
@@ -274,6 +275,7 @@ export default function Home() {
         e.preventDefault();
         setPanel("search");
         setDetails(false);
+        setSehatSetuOpen(false);
       }
     };
     window.addEventListener("keydown", key);
@@ -516,7 +518,7 @@ export default function Home() {
     );
   };
   return (
-    <main className="studio" style={{
+    <main className={`studio redesigned-studio ${sehatSetuOpen ? "report-mode" : ""}`} style={{
       "--background": viewerBackground,
       "--scene-foreground": backgroundForeground(viewerBackground),
     } as CSSProperties}>
@@ -541,39 +543,65 @@ export default function Home() {
         />
       )}
       <div className="vignette" />
+      <StudioDashboard
+        pieces={atlas?.parts.length ?? MODELS[model].pieces}
+        systems={activeSystems.length}
+        model={model}
+        ready={progress === 100 && !error}
+        online={pwa.online}
+        reportOpen={sehatSetuOpen}
+        savedOpen={panel === "saved"}
+        hideGuide={sehatSetuOpen || inspectorOpen}
+        onHome={() => {
+          setSehatSetuOpen(false);
+          setDetails(false);
+          setPanel(null);
+          setSystemsPinned(true);
+        }}
+        onReport={() => {
+          setPanel(null);
+          setDetails(false);
+          setSehatSetuOpen(true);
+        }}
+        onSaved={() => {
+          setDetails(false);
+          setSehatSetuOpen(false);
+          setPanel((current) => current === "saved" ? null : "saved");
+        }}
+        onAbout={() => openAbout()}
+        onExplore={(name) => {
+          const concept = concepts.find((item) => item.name.toLowerCase() === name)
+            ?? concepts.find((item) => item.name.toLowerCase() === `left ${name}`)
+            ?? concepts.find((item) => item.name.toLowerCase().includes(name));
+          if (concept) choose(concept);
+          else { setQuery(name); openPanel("search"); }
+        }}
+      />
       {viewNotice && (
         <div className="view-notice glass" role="status">
           {viewNotice}
         </div>
       )}
       <header className="identity">
-        <h1>
-          SehatSetu <span className="edition">3D</span>
-        </h1>
-        <div className="identity-meta">
-          {atlas ? atlas.parts.length.toLocaleString() : MODELS[model].pieces.toLocaleString()}{" "}
-          modeled pieces
-          <span className="identity-source">
-            {" "}
-            <span>·</span> {MODELS[model].source}
-          </span>
-        </div>
+        <div className="brand-symbol"><Activity size={25} strokeWidth={1.7} /></div>
+        <div><h1>Sehat<span>Setu</span><span className="edition">3D</span></h1>
+        <div className="identity-meta">Your body, better understood.</div></div>
       </header>
       <div ref={savedPanelAnchor} className="explorer-panel-anchor" aria-hidden="true" />
       <nav className="top-actions" aria-label="Explorer panels">
         <Button
           variant="ghost"
-          className={panel === "search" ? "active" : ""}
+          className={`header-search ${panel === "search" ? "active" : ""}`}
           onClick={() => openPanel("search")}
           aria-label="Search anatomy"
         >
           <Search size={18} />
-          <span>Find a structure</span>
+          <span>Search the human body...</span>
           <kbd>/</kbd>
         </Button>
         <Button
           variant="ghost"
-          className={sehatSetuOpen ? "active" : ""}
+          className={`header-report ${sehatSetuOpen ? "active" : ""}`}
           onClick={() => {
             setPanel(null);
             setDetails(false);
@@ -583,7 +611,7 @@ export default function Home() {
           title="Medical Report Explorer (SehatSetu)"
         >
           <FileText size={18} />
-          <span>Medical Report</span>
+          <span>Explore a report</span>
         </Button>
         {atlas && (
           <ViewLibrary
@@ -636,7 +664,7 @@ export default function Home() {
         aria-label="Anatomical layers"
       >
         <div className="panel-heading">
-          <span>Systems ({enabledSystemCount})</span>
+          <span>BODY SYSTEMS <span className="systems-count">{enabledSystemCount}/{activeSystems.length}</span></span>
           <Button
             variant="ghost"
             className="icon-button panel-close"
@@ -649,6 +677,7 @@ export default function Home() {
             <X size={18} />
           </Button>
         </div>
+        <p className="layers-intro">Build your own perspective.</p>
         <div className="layer-presets">
           <Button
             variant="ghost"
@@ -693,7 +722,7 @@ export default function Home() {
           />
         )}
         <div className="opacity-help">
-          <span>Expand a system to adjust opacity.</span>
+          <span>Expand a system for structures & opacity.</span>
           {Object.keys(state.opacity ?? {}).length > 0 && (
             <Button
               variant="ghost"

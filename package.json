@@ -12,6 +12,8 @@
     "preview": "vite preview",
     "server": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload",
     "test:backend": "python backend/test_backend.py",
+    "test:mcp": "python -m unittest backend.test_mcp -v",
+    "test:companion": "playwright test --config scripts/companion.playwright.config.mjs",
     "check": "tsc --noEmit",
     "lint": "oxlint app components lib web scripts vite.config.ts playwright.config.mjs --deny-warnings",
     "test": "node scripts/validate-atlas.mjs && node scripts/validate-atlas.mjs atlas-female.json && node scripts/validate-interactions.mjs && node scripts/validate-assets.mjs && node --test scripts/*.test.mjs",

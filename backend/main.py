@@ -2,6 +2,8 @@ import sys
 import os
 import time
 import logging
+import asyncio
+from contextlib import asynccontextmanager
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -18,6 +20,29 @@ load_dotenv()
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from backend.mcp_server import mcp, prune, sessions, companions, invitations
+from backend.security import RequestGuard
+
+
+@asynccontextmanager
+async def lifespan(app):
+    async def expire_reports():
+        while True:
+            await asyncio.sleep(30)
+            prune()
+
+    async with mcp.session_manager.run():
+        cleanup = asyncio.create_task(expire_reports())
+        try:
+            yield
+        finally:
+            cleanup.cancel()
+            try:
+                await cleanup
+            except asyncio.CancelledError:
+                pass
+            sessions.clear(); companions.clear(); invitations.clear()
 
 try:
     from backend.models import (
@@ -49,6 +74,7 @@ logging.basicConfig(
 logger = logging.getLogger("sehatsetu.server")
 
 app = FastAPI(
+    lifespan=lifespan,
     title="SehatSetu Medical Report Explorer API",
     version="1.0.0",
     description="Backend API for medical report extraction and 3D anatomy mapping",
@@ -61,15 +87,21 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
+    "http://localhost:4173",
+    "http://127.0.0.1:4173",
 ]
+origins += [value.strip() for value in os.getenv("SEHATSETU_ALLOWED_ORIGINS", "").split(",") if value.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Development safe
-    allow_credentials=True,
+    allow_origins=origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestGuard, origins=origins)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"] +
+    [value.strip() for value in os.getenv("SEHATSETU_ALLOWED_HOSTS", "").split(",") if value.strip()])
 
 provider = MedicalAIProvider()
 
@@ -89,9 +121,10 @@ async def analyze_report(
     file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
     language: str = Form("en"),
+    report_filename: str = Form("report.txt"),
 ):
     start_time = time.time()
-    filename = "report.txt"
+    filename = report_filename[:160]
     report_text = ""
     page_count = 1
 
@@ -194,7 +227,7 @@ async def analyze_report(
         unmapped_terms=raw_result.get("unmapped_terms", []),
         disclaimer="Educational Disclaimer: This visualization is for anatomical understanding and terminology reference only. It is not an autonomous diagnostic report. Consult your doctor.",
         created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        provider="groq" if provider.is_configured() else "deterministic_local",
+        provider=raw_result.get("provider", "deterministic_local"),
         model=provider.model,
     )
 
@@ -223,3 +256,7 @@ async def chat_endpoint(request: ChatRequest):
         structure_aliases=request.structure_aliases,
         structure_description=request.structure_description,
     )
+
+
+# Register last so the MCP ASGI app does not shadow the existing REST routes.
+app.mount("/", mcp.streamable_http_app())

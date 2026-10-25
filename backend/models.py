@@ -68,6 +68,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+    provider: str = "deterministic_local"
     mentioned_terms: List[str] = Field(default_factory=list)
     navigation_intent: bool = False
     warnings: List[str] = Field(default_factory=list)

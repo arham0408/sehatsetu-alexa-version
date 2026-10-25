@@ -1,5 +1,6 @@
 # dependencies
 /node_modules
+/.venv/
 /.pnp
 .pnp.*
 .yarn/*
@@ -25,6 +26,7 @@ yarn-error.log*
 
 # local environment
 .env*
+!backend/.env.example
 
 # deployment and generated files
 /dist/

@@ -359,69 +359,39 @@ export default function AnatomyScene({
             : new T.Vector3(0.35, 0.06, 1)
       ).normalize();
     const landscapeFrame = () => {
-      const rect = el.getBoundingClientRect();
-      const dock = document.querySelector(".bottom-dock")?.getBoundingClientRect();
-      const sheet = latest.current.inspectorOpen
-        ? document.querySelector(".detail-sheet")?.getBoundingClientRect()
-        : undefined;
-      if (sheet && sheet.left < rect.right && sheet.right > rect.left) {
-        const heading = document.querySelector(".identity")?.getBoundingClientRect();
-        return {
-          left: 16,
-          right: Math.max(166, sheet.left - rect.left - 16),
-          top: (heading?.bottom ?? rect.top) - rect.top + 16,
-          bottom: (dock?.top ?? rect.bottom) - rect.top - 16,
-        };
-      }
-      const rail = document.querySelector(".view-controls")?.getBoundingClientRect();
-      return {
-        left: (dock ? dock.right - rect.left : 262) + 16,
-        right: (rail ? rail.left - rect.left : el.clientWidth - 56) - 16,
-        top: 14,
-        bottom: el.clientHeight - 28,
-      };
+      return desktopFrame();
     };
     const desktopFrame = () => {
       const rect = el.getBoundingClientRect();
       const rail = document.querySelector(".viewer-controls")?.getBoundingClientRect();
-      const heading = document.querySelector(".identity")?.getBoundingClientRect();
-      const actions = document.querySelector(".top-actions")?.getBoundingClientRect();
-      const dock = document.querySelector(".bottom-dock")?.getBoundingClientRect();
-      const sideGap = rail ? rect.right - rail.left + 16 : 20;
+      const compact = window.innerWidth < 768;
+      const landscape = window.innerWidth > window.innerHeight && window.innerHeight <= 600;
+      // The canvas now owns its viewport. Reserve only the controls inside it,
+      // rather than subtracting the surrounding workspace a second time.
+      const sideGap = !landscape && rail && rail.left < rect.right
+        ? rect.right - rail.left + 16
+        : 24;
       return {
-        left: sideGap,
+        left: compact ? 18 : 28,
         right: el.clientWidth - sideGap,
-        top: Math.max(heading?.bottom ?? rect.top, actions?.bottom ?? rect.top) - rect.top + 24,
-        bottom: (dock?.top ?? rect.bottom) - rect.top - 20,
+        top: landscape ? 58 : compact ? 48 : 64,
+        bottom: el.clientHeight - (landscape ? 35 : 66),
       };
     };
     const fit = (view: string, extent = 0, transitionTime?: number) => {
       controls.maxDistance = 40;
-      const mobile = el.clientWidth < 768;
-      const landscape = el.clientWidth > el.clientHeight && el.clientHeight <= 600;
-      const frame = landscape ? landscapeFrame() : undefined;
-      const frameHeight = frame ? Math.max(40, frame.bottom - frame.top) : 0;
-      const frameWidth = frame ? Math.max(150, frame.right - frame.left) : 0;
-      const normalDistance = frame
-        ? (Math.max(1.8 * el.clientHeight / frameHeight, 1.25 * el.clientHeight / frameWidth) /
-            (2 * Math.tan(T.MathUtils.degToRad(camera.fov / 2)))) * 1.1
-        : mobile
-        ? Math.max(
-            4.5,
-            (1.8 * el.clientHeight) /
-              Math.max(160, el.clientHeight - 350) /
-              (2 * Math.tan(T.MathUtils.degToRad(camera.fov / 2))),
-          )
-        : 4;
-      const packingFrame = !mobile && !landscape ? desktopFrame() : frame;
+      const frame = desktopFrame();
+      const frameHeight = Math.max(60, frame.bottom - frame.top);
+      const frameWidth = Math.max(100, frame.right - frame.left);
+      const normalDistance = (Math.max(1.8 * el.clientHeight / frameHeight, .85 * el.clientHeight / frameWidth) /
+        (2 * Math.tan(T.MathUtils.degToRad(camera.fov / 2)))) * .96;
+      const packingFrame = frame;
       const reservedHeight = packingFrame
         ? el.clientHeight - (packingFrame.bottom - packingFrame.top)
         : 350;
       const availableAspect = Math.max(
         0.35,
-        frame ? frameWidth / frameHeight :
-          (packingFrame ? packingFrame.right - packingFrame.left : el.clientWidth - 40) /
-            Math.max(160, el.clientHeight - reservedHeight),
+        frameWidth / frameHeight,
       );
       const atlasDistance =
         (Math.max(packingHeight, packingWidth / availableAspect) /
@@ -433,13 +403,13 @@ export default function AnatomyScene({
       const direction = viewDirection(view);
       const center = new T.Vector3(
         0,
-        extent > 0.1 || mobile || landscape ? 0.85 : 0.68,
+        0.85,
         0,
       );
       const destinationOffset = packingFrame ? new T.Vector2(
         el.clientWidth / 2 - (packingFrame.left + packingFrame.right) / 2,
         el.clientHeight / 2 - (packingFrame.top + packingFrame.bottom) / 2,
-      ).multiplyScalar(landscape ? 1 : extent) : new T.Vector2();
+      ) : new T.Vector2();
       const destination = center.clone().addScaledVector(direction, distance);
       controls.autoRotate = false;
       controls.enableDamping = false;
@@ -627,7 +597,7 @@ export default function AnatomyScene({
           }
         });
         const enabledParts = atlas.parts.filter((p) => partIsEnabled(p, s, visible));
-        const frame = el.clientWidth >= 768 && el.clientHeight > 600 ? desktopFrame() : undefined;
+        const frame = desktopFrame();
         const packingAspect = frame
           ? (frame.right - frame.left) / Math.max(160, frame.bottom - frame.top)
           : camera.aspect;
@@ -725,17 +695,9 @@ export default function AnatomyScene({
             const w = el.clientWidth,
               h = el.clientHeight;
             const sceneRect = el.getBoundingClientRect();
-            const mobile = w < 768,
-              landscape = w > h && h <= 600;
-            let left = 20,
-              right = w - 20,
-              top = mobile ? 175 : 110,
-              bottom = h - 170;
-            if (landscape) {
-              ({ left, right, top, bottom } = landscapeFrame());
-            } else if (!mobile) {
-              ({ left, right, top, bottom } = desktopFrame());
-            }
+            const mobile = window.innerWidth < 768,
+              landscape = window.innerWidth > window.innerHeight && window.innerHeight <= 600;
+            let { left, right, top, bottom } = landscape ? landscapeFrame() : desktopFrame();
             if (s.inspectorOpen) {
               const sheet = document.querySelector(".detail-sheet")?.getBoundingClientRect();
               if (
@@ -746,10 +708,6 @@ export default function AnatomyScene({
                 sheet.bottom > sceneRect.top
               ) {
                 if (mobile && !landscape) {
-                  top =
-                    (document.querySelector(".viewer-controls")?.getBoundingClientRect().bottom ?? 159) -
-                    sceneRect.top +
-                    16;
                   bottom = Math.max(top + 40, sheet.top - sceneRect.top - 16);
                 } else {
                   right = Math.max(left + 150, sheet.left - sceneRect.left - 16);

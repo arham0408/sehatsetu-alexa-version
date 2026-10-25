@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { resolveAnatomyTarget, deduplicateFindingsByTarget, splitFindingsByAvailability } from "../app/medical-mapping.ts";
-import { extractFindingsLocally } from "../app/medical-report-service.ts";
+import { extractFindingsLocally, sendChatMessage, analyzeReport } from "../app/medical-report-service.ts";
 import { MedicalAnatomyController } from "../app/medical-anatomy-controller.ts";
 import { explicitLanguageRequest, resolveResponseLanguage } from "../app/medical-language.ts";
 import { SUPPORTED_LANGUAGES } from "../app/medical-types.ts";
@@ -14,6 +14,19 @@ const maleAtlas = JSON.parse(
 const femaleAtlas = JSON.parse(
   fs.readFileSync(new URL("../public/models/atlas-female.json", import.meta.url), "utf-8"),
 );
+
+test("offline answers quote only the current report and preserve negative findings", async (context) => {
+  context.mock.method(globalThis, "fetch", async () => { throw new Error("offline"); });
+  const response = await sendChatMessage("gallbladder", "No gallstones in the gallbladder.", maleAtlas, "hi", []);
+  assert.match(response.text, /No gallstones in the gallbladder/);
+  assert.doesNotMatch(response.text, /12 mm/);
+  assert.equal(response.language, "en");
+  assert.ok(response.warnings.length);
+  const missing = await sendChatMessage("liver", "Heart size is normal.", maleAtlas, "en", []);
+  assert.match(missing.text, /No matching report evidence/);
+  assert.doesNotMatch(missing.text, /mild hepatic steatosis/);
+  await assert.rejects(analyzeReport({ text: "", filename: "empty.txt" }, maleAtlas), /No readable report text/);
+});
 
 test("SehatSetu: resolves exact verified organ concepts in male and female atlases", () => {
   const gb = resolveAnatomyTarget("gallbladder", maleAtlas);

@@ -264,6 +264,7 @@ export async function analyzeReport(
       formData.append("text", reportText);
     }
     formData.append("language", language);
+    formData.append("report_filename", content.filename);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
@@ -323,7 +324,8 @@ export async function analyzeReport(
 
   // Fallback: Local deterministic analysis
   onProgress?.(75, "Analyzing with local deterministic medical pipeline...");
-  const finalText = reportText || SAMPLE_REPORTS.abdomen.text;
+  if (!reportText.trim()) throw new Error("No readable report text was provided. Paste text or choose a synthetic sample explicitly.");
+  const finalText = reportText;
   const findings = extractFindingsLocally(finalText, atlas);
   onProgress?.(95, "Mapping verified structures in 3D catalogue...");
 
@@ -511,72 +513,20 @@ export async function sendChatMessage(
     /* Backend not available; proceed to local intelligent assistant */
   }
 
-  // Local rule-based assistant fallback (English content, resolved language tag)
+  // Offline mode quotes the user's report rather than asserting sample diagnoses.
   const qNorm = question.toLowerCase();
-  let answer = "";
-  const mentionedTerms: string[] = [];
-  let navigationIntent = false;
-
-  const organKeywords = [
-    "gallbladder",
-    "liver",
-    "kidney",
-    "appendix",
-    "stomach",
-    "spleen",
-    "pancreas",
-    "lung",
-    "heart",
-    "brain",
-    "urinary bladder",
-    "femur",
-  ];
-
-  for (const organ of organKeywords) {
-    if (qNorm.includes(organ)) {
-      mentionedTerms.push(organ);
-      navigationIntent = true;
-    }
-  }
-
-  if (selectedOrgan) {
-    mentionedTerms.push(selectedOrgan);
-    navigationIntent = true;
-    if (currentFinding) {
-      answer = `Regarding your ${selectedOrgan}: the uploaded report identifies ${currentFinding}. In your 3D view, this structure is highlighted in yellow. Consult your clinician for specific treatment or surgical evaluation if you experience persistent symptoms.`;
-    } else {
-      answer = `Regarding your ${selectedOrgan}: this structure is shown as normal reference anatomy. There are no acute abnormalities, stones, or lesions noted for the ${selectedOrgan} in your uploaded medical report.`;
-    }
-  } else if (qNorm.includes("gallbladder") || qNorm.includes("gallstone") || qNorm.includes("cholelithiasis")) {
-    answer =
-      "In this report, the gallbladder contains a 12 mm calculus (gallstone). In the 3D model, the gallbladder is located beneath the liver in the right upper abdomen. Gallstones form when substances in bile harden into stone-like material.";
-    mentionedTerms.push("gallbladder");
-    navigationIntent = true;
-  } else if (qNorm.includes("liver") || qNorm.includes("steatosis") || qNorm.includes("fatty")) {
-    answer =
-      "The report identifies mild hepatic steatosis (fatty liver). The liver is the large reddish-brown organ on the upper right side of your abdomen. Grade I steatosis indicates early fat accumulation in liver cells without evidence of structural damage or masses.";
-    mentionedTerms.push("liver");
-    navigationIntent = true;
-  } else if (qNorm.includes("pneumonia") || qNorm.includes("lung") || qNorm.includes("infiltrate")) {
-    answer =
-      "The report describes patchy consolidation and infiltrate in the right lower lobe of the lung, characteristic of acute pneumonia. The left lung is clear.";
-    mentionedTerms.push("right lung");
-    navigationIntent = true;
-  } else if (qNorm.includes("stroke") || qNorm.includes("brain") || qNorm.includes("infarct")) {
-    answer =
-      "The MRI shows restricted diffusion in the left middle cerebral artery territory, consistent with acute to subacute ischemic cerebral infarction (stroke).";
-    mentionedTerms.push("brain");
-    navigationIntent = true;
-  } else if (qNorm.includes("doctor") || qNorm.includes("ask") || qNorm.includes("question")) {
-    answer =
-      "Good questions to ask your doctor:\n1. What does this finding mean for my daily symptoms?\n2. Are additional blood tests, ultrasounds, or follow-up scans needed?\n3. What dietary or lifestyle modifications or medical treatments do you recommend?";
-  } else if (qNorm.includes("explain") || qNorm.includes("meaning") || qNorm.includes("term")) {
-    answer =
-      "This report records diagnostic observations from medical imaging. You can click on any highlighted finding in the list above to view its 3D anatomical position, or ask specifically about any organ mentioned in the report.";
-  } else {
-    answer =
-      "I've reviewed your report context. You can tap any clinical finding above to inspect its 3D location in the human atlas, or ask me: 'Show me the gallbladder', 'Explain fatty liver', or 'What should I ask my doctor?'";
-  }
+  const organKeywords = ["gallbladder", "liver", "kidney", "appendix", "stomach", "spleen", "pancreas", "lung", "heart", "brain", "urinary bladder", "femur"];
+  const mentionedTerms = organKeywords.filter(organ => qNorm.includes(organ));
+  if (selectedOrgan) mentionedTerms.push(selectedOrgan);
+  const navigationIntent = mentionedTerms.length > 0;
+  const excerpts = scoped?.findingEvidence
+    ? [scoped.findingEvidence]
+    : reportContext.split(/(?<=[.!?;])\s+|\n+/).map(line => line.trim()).filter(line =>
+      line.length > 5 && (!mentionedTerms.length || mentionedTerms.some(term => line.toLowerCase().includes(term)))).slice(0, 6);
+  const answer = (excerpts.length
+    ? `Report excerpts (limited offline mode):\n${excerpts.map(line => `• ${line}`).join("\n")}`
+    : "No matching report evidence is available in offline mode. This does not establish that the anatomy is normal or abnormal.")
+    + "\nThe 3D model is reference anatomy. Discuss the original report with your clinician.";
 
   const resolvedTargets = mentionedTerms
     .map((t) => resolveAnatomyTarget(t, atlas))
@@ -587,7 +537,8 @@ export async function sendChatMessage(
     sender: "assistant",
     text: answer,
     timestamp: Date.now(),
-    language: responseLanguage,
+    language: "en",
+    warnings: ["Limited offline fallback; conversational explanations and translation require the AI backend."],
     mentionedTargets: resolvedTargets,
     navigationIntent,
   };

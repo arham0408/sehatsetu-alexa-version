@@ -29,9 +29,11 @@ import {
   sendChatMessage,
 } from "./medical-report-service.ts";
 import { ScopedChat } from "./medical-scoped-chat.tsx";
+import VoiceCompanion from "./voice-companion";
 import {
   enrichFindingsWithAtlas,
   isVisualizableFinding,
+  resolveAnatomyTarget,
 } from "./medical-mapping.ts";
 import {
   SUPPORTED_LANGUAGES,
@@ -50,6 +52,17 @@ interface Props {
   onClose: () => void;
 }
 
+const reportTabs: Record<IndianLanguageCode, [string, string, string]> = {
+  en: ["Upload", "Findings", "Ask a question"],
+  hi: ["रिपोर्ट", "निष्कर्ष", "सवाल पूछें"],
+  bn: ["রিপোর্ট", "ফলাফল", "প্রশ্ন করুন"],
+  te: ["నివేదిక", "ఫలితాలు", "ప్రశ్న అడగండి"],
+  mr: ["अहवाल", "निष्कर्ष", "प्रश्न विचारा"],
+  ta: ["அறிக்கை", "முடிவுகள்", "கேள்வி கேளுங்கள்"],
+  gu: ["રિપોર્ટ", "તારણો", "પ્રશ્ન પૂછો"],
+  kn: ["ವರದಿ", "ಫಲಿತಾಂಶಗಳು", "ಪ್ರಶ್ನೆ ಕೇಳಿ"],
+};
+
 export default function MedicalReportExplorer({
   atlas,
   sceneState,
@@ -58,7 +71,7 @@ export default function MedicalReportExplorer({
 }: Props) {
   const [sessionId, setSessionId] = useState<string>(() => `sess-${Date.now()}`);
   const [language, setLanguage] = useState<IndianLanguageCode>("en");
-  const [activeTab, setActiveTab] = useState<"findings" | "chat" | "upload">("upload");
+  const [activeTab, setActiveTab] = useState<"findings" | "chat" | "upload" | "assistant">("upload");
   const [reportState, setReportState] = useState<ReportAnalysisState>({ status: "idle" });
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
   const [isolateMode, setIsolateMode] = useState(false);
@@ -541,13 +554,25 @@ export default function MedicalReportExplorer({
       <div className="sehatsetu-tabs" role="tablist">
         <button
           type="button"
+          className={`sehatsetu-tab-btn ${activeTab === "upload" ? "active" : ""}`}
+          onClick={() => setActiveTab("upload")}
+          role="tab"
+          aria-label={t.uploadHeading}
+          aria-selected={activeTab === "upload"}
+        >
+          <Upload size={14} />
+          <span>{reportTabs[language][0]}</span>
+        </button>
+        <button
+          type="button"
           className={`sehatsetu-tab-btn ${activeTab === "findings" ? "active" : ""}`}
           onClick={() => setActiveTab("findings")}
           role="tab"
+          aria-label={t.findingsHeading}
           aria-selected={activeTab === "findings"}
         >
           <ListFilter size={14} />
-          <span>{t.findingsHeading}</span>
+          <span>{reportTabs[language][1]}</span>
           {reportState.result?.findings.length ? (
             <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
               {reportState.result.findings.length}
@@ -559,25 +584,30 @@ export default function MedicalReportExplorer({
           className={`sehatsetu-tab-btn ${activeTab === "chat" ? "active" : ""}`}
           onClick={() => setActiveTab("chat")}
           role="tab"
+          aria-label={t.chatHeading}
           aria-selected={activeTab === "chat"}
         >
           <Bot size={14} />
-          <span>{t.chatHeading}</span>
+          <span>{reportTabs[language][2]}</span>
         </button>
-        <button
-          type="button"
-          className={`sehatsetu-tab-btn ${activeTab === "upload" ? "active" : ""}`}
-          onClick={() => setActiveTab("upload")}
-          role="tab"
-          aria-selected={activeTab === "upload"}
-        >
-          <Upload size={14} />
-          <span>{t.uploadHeading}</span>
+        <button type="button" role="tab" aria-selected={activeTab === "assistant"}
+          className={`sehatsetu-tab-btn ${activeTab === "assistant" ? "active" : ""}`}
+          onClick={() => { audioCtrl.current.stopSpeaking(); audioCtrl.current.stopListening(); setIsSpeaking(false); setIsListening(false); setActiveTab("assistant"); }}>
+          <Sparkles size={14} /><span>Voice companion</span>
         </button>
       </div>
 
       {/* Body Area */}
       <div className="sehatsetu-body">
+        <div hidden={activeTab !== "assistant"}>
+          <VoiceCompanion key={activeReport?.reportId || "no-report"} report={activeReport} language={language} visible={activeTab === "assistant"}
+            onNavigate={terms => {
+              const targets = terms.map(term => resolveAnatomyTarget(term, atlas)).filter((target): target is VerifiedAnatomyTarget => !!target && target.availableInModel && target.partIds.length > 0);
+              if (!targets.length) return false;
+              onUpdateSceneState(current => ({ ...current, ...anatomyCtrl.current.focusAllTargets(targets, current) }));
+              return true;
+            }} />
+        </div>
         {/* Active Report Header if report is loaded */}
         {activeReport && (
           <div className="sehatsetu-active-report-bar">
@@ -957,9 +987,19 @@ export default function MedicalReportExplorer({
         {/* TAB 3: UPLOAD & SAMPLES */}
         {activeTab === "upload" && (
           <div className="flex flex-col gap-4">
+            <p className="report-upload-intro">{t.tagline}</p>
             {/* Drag & Drop Upload Zone */}
             <div
               className={`sehatsetu-dropzone ${isDragging ? "dragging" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-label={t.uploadHeading}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
               onDragOver={(e) => {
                 e.preventDefault();
                 setIsDragging(true);

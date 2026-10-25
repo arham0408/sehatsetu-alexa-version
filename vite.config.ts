@@ -15,8 +15,12 @@ export default defineConfig({
   build: { outDir: path('./dist'), emptyOutDir: true },
   server: {
     proxy: {
+      '/mcp': {
+        target: process.env.SEHATSETU_API_TARGET || 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.SEHATSETU_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },
