@@ -102,4 +102,4 @@ The current track demonstration follows the official web-simulation route. These
 2. Evaluate an Amazon Bedrock provider adapter if using AWS-hosted inference becomes a product requirement. The current provider is Groq or deterministic fallback; no Bedrock adapter exists here.
 3. Evaluate an authenticated AWS deployment with durable, appropriately protected report storage and auditable consent. The current in-memory store is not deployable as a multi-worker or clinical records service without further design.
 
-These plans do not establish AWS Builder eligibility or a live Amazon device integration. See the [official simulator FAQ](https://amazonappdev2026.devpost.com/details/faqs) and [dated implementation status](SUBMISSION_STATUS.md).
+These plans do not establish AWS Builder eligibility or a live Amazon device integration. See the [official simulator FAQ](https://amazonappdev2026.devpost.com/details/faqs) and [review checklist](SUBMISSION_STATUS.md).

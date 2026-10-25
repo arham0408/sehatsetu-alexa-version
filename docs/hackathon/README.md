@@ -4,7 +4,7 @@
 
 [Watch the team demo](https://www.youtube.com/watch?v=teRzrT49HVo) · [Project README](../../README.md) · [Local demo](http://localhost:3016/?demo=1)
 
-The local link works after starting the two services on your own computer. No public hosted application is claimed. The linked video is team-provided; its content and runtime have not been independently verified.
+The local link works after starting the two services on your own computer. The video page resolves to the expected SehatSetu title. Automated playback encountered YouTube's bot check; footage and runtime need manual inspection. The runnable browser/MCP workflow has been verified independently.
 
 ## Choose a review path
 
@@ -13,16 +13,18 @@ The local link works after starting the two services on your own computer. No pu
 | Understand the product and try it | [Judge's guide](JUDGE_GUIDE.md) | Five-minute evaluation with clicks, prompts, and expected behavior |
 | Start from a fresh checkout | [Local setup](../../README.md#run-locally) | Browser on 3016 and Python API/MCP on 8000 |
 | Inspect the implementation | [Architecture review](TECHNICAL_REVIEW.md) | Components, protocol flow, data boundaries, tool inputs, and source links |
+| Inspect protocol/tool interoperability | [MCP protocol](MCP_PROTOCOL.md) | Wire examples, all nine tools, and an independent SDK verification command |
+| Confirm private-repository reviewer access | [Access check](REVIEWER_ACCESS.md) | Confirmed collaborators and invitations that require owner review |
 | Resolve setup/demo issues | [Troubleshooting](TROUBLESHOOTING.md) | Symptom-based fixes and readiness checks |
 | Understand GitHub checks and deployment | [CI and Pages](CI.md) | Mandatory validation with optional, automatically detected Pages deployment |
 | Review a short presentation | [Demo walkthrough](DEMO_WALKTHROUGH.md) | Suggested current-version sequence under three minutes |
 | Check test evidence | [Verification record](VERIFICATION.md) | Recorded results and what remains untested |
 | Review developer experience | [Product feedback](PRODUCT_FEEDBACK.md) | Tools actually used, observed friction, and feature requests |
-| Check version and submission scope | [Submission status](SUBMISSION_STATUS.md) | Dated additions, inherited functionality, and unverified submission details |
-| Inspect the original atlas and licenses | [Atlas technical guide](../../README-technical.md), [asset attribution](../../public/ATTRIBUTION.md) | Source provenance and applicable licenses |
+| Review the submission materials | [Review checklist](SUBMISSION_STATUS.md) | Demo, source, feedback, and reviewer-access checks |
+| Inspect anatomy documentation and licenses | [Technical guide](../../README-technical.md), [asset attribution](../../public/ATTRIBUTION.md) | Viewer architecture and applicable notices |
 
 ## What to expect
 
 The core evaluation needs no login, Alexa hardware, AWS account, or paid inference. Typed questions work without a microphone. No-key mode returns English report excerpts; conversational reasoning and translation require a configured Groq provider. A separate browser tab can demonstrate pairing without another physical device.
 
-The current implementation and documentation include October 25, 2026 post-submission work. Review the version notice in the main README before comparing the repository with the original submitted entry.
+For verification evidence rather than feature descriptions alone, use the [JSON protocol result](evidence/mcp-verification.json), [verification record](VERIFICATION.md), and [repeatable judge walkthrough](JUDGE_GUIDE.md).

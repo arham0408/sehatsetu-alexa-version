@@ -1,6 +1,6 @@
 # Product feedback and observed friction
 
-Based on local development on October 25, 2026. These are post-submission observations, not claims about the team's event-period experience. Add independently verified event-period feedback separately.
+Implementation feedback based on the tools used by SehatSetu and observed local verification. The table distinguishes directly tested behavior from checks requiring live provider access or physical audio testing.
 
 | Tool | Used for / what worked | Limitations / onboarding | Would use again? |
 | --- | --- | --- | --- |

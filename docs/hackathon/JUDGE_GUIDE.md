@@ -2,13 +2,13 @@
 
 **SehatSetu turns a report into a voice-and-screen conversation:** ask about a report phrase, compare the original evidence, and see the associated reference anatomy. The Alexa+ track is demonstrated through a labeled web simulator and a real MCP server.
 
-[Team demo video](https://www.youtube.com/watch?v=teRzrT49HVo) · [Architecture](TECHNICAL_REVIEW.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Version status](SUBMISSION_STATUS.md)
+[Team demo video](https://www.youtube.com/watch?v=teRzrT49HVo) · [Architecture](TECHNICAL_REVIEW.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Review checklist](SUBMISSION_STATUS.md)
 
 ## Before starting
 
 Start the frontend and Python backend using the [README instructions](../../README.md#run-locally). Open [http://localhost:3016/?demo=1](http://localhost:3016/?demo=1). Wait for the atlas to finish loading. A fresh checkout needs Node/Python dependencies and initial model loading time before the timed evaluation below.
 
-The walkthrough needs no account, hardware, or paid key. Use typed input first. Keep both browser and backend running. The purpose is to evaluate the current implementation, which includes additions dated after the submission deadline.
+The walkthrough needs no application account, hardware, or paid key. Use typed input first. Keep both browser and backend running. Cloning the private repository requires authorized GitHub access; see the [reviewer-access check](REVIEWER_ACCESS.md).
 
 ## Evaluation steps and expected results
 
@@ -63,6 +63,7 @@ Expected output includes:
 ```text
 Negotiated 2025-11-25; discovered 9 tools.
 Report creation, grounded answer, and anatomy request passed.
+Companion pairing, shared navigation, and access revocation passed.
 Synthetic session deleted.
 ```
 
@@ -70,4 +71,4 @@ The script creates its own synthetic session and deletes it. It does not operate
 
 ## Review boundaries
 
-Use [recorded verification](VERIFICATION.md) for completed tests, [architecture review](TECHNICAL_REVIEW.md) for implementation evidence, and [submission status](SUBMISSION_STATUS.md) for dates and inherited components. The team-provided video's contents, runtime, and correspondence to earlier code remain unverified by this documentation pass.
+Use [recorded verification](VERIFICATION.md) for completed tests, [architecture review](TECHNICAL_REVIEW.md) for implementation evidence, and [the review checklist](SUBMISSION_STATUS.md) for material/access checks. The video page is reachable and has the expected project title; automated playback was blocked by YouTube's bot check, so footage, narration, and runtime still need manual inspection.

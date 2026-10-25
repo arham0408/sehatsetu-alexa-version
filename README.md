@@ -8,9 +8,9 @@
 
 **Amazon Build, Ship, Shape Developer Hackathon · Alexa+ primary track**
 
-Implementation: **a clearly labeled Alexa+ web simulation backed by a real self-hosted MCP server**. No Echo hardware, Alexa account, or gated SDK is required. This independent prototype does not connect to a live Alexa device.
+**Voice-first · Multimodal · Report-grounded · MCP 2025-11-25 · Streamable HTTP**
 
-> **Version transparency:** The MCP server, companion simulation, pairing, and documentation in this working copy were added on **October 25, 2026, after the submission deadline**. They describe the current project, not proof of what existed in the submitted video or deadline version. See [development history and submission status](docs/hackathon/SUBMISSION_STATUS.md).
+SehatSetu demonstrates an **Alexa+ experience simulation backed by a real self-hosted MCP server**. A user uploads a report, asks questions by voice or text, hears an explanation, and sees the relevant anatomy in 3D. A paired browser can act as a separate voice surface. The implementation follows the track's browser-simulator route; no Echo hardware or gated Alexa+ SDK is required.
 
 ## Start here, judges
 
@@ -27,7 +27,7 @@ Implementation: **a clearly labeled Alexa+ web simulation backed by a real self-
 
 ## Demo video and screenshots
 
-**[Watch the team-provided demo on YouTube](https://www.youtube.com/watch?v=teRzrT49HVo).** The video is supplied by the team; its footage, runtime, and correspondence to the deadline version have not been independently verified. The walkthrough below documents the current runnable code.
+**[Watch SehatSetu — Making Medical Reports Understandable Through AI & 3D Anatomy](https://www.youtube.com/watch?v=teRzrT49HVo).** Follow the [five-minute guide](docs/hackathon/JUDGE_GUIDE.md) to reproduce the working report-to-conversation flow yourself. The [verification record](docs/hackathon/VERIFICATION.md) distinguishes tested behavior from items requiring manual review.
 
 | Desktop: shared anatomy and MCP activity | Mobile: paired report conversation |
 | --- | --- |
@@ -54,9 +54,9 @@ The 3D body is **normal reference anatomy**, not a reconstruction of the patient
 
 The official rules allow simulated Alexa+ web experiences. The FAQ explicitly accepts a web page sending real MCP initialization, tool discovery, and tool calls over Streamable HTTP. This implementation follows that route using its own browser UI and the official MCP Python SDK.
 
-The browser controller routes questions to `ask_report`; explicit actions invoke anatomy, preparation, and pairing tools. It does not claim autonomous model-driven tool selection or an Amazon-certified integration.
+The browser controller routes questions to `ask_report`; explicit actions invoke anatomy, preparation, and pairing tools. Within a temporary report session, the assistant keeps report context and recent conversational history. Its answers can lead to an actual viewer action instead of ending as standalone text.
 
-Sources: [official rules](https://amazonappdev2026.devpost.com/rules), [Alexa+ simulator FAQ](https://amazonappdev2026.devpost.com/details/faqs).
+Sources: [Alexa+ simulator FAQ](https://amazonappdev2026.devpost.com/details/faqs), [organizer guidance on voice-first, multimodal experiences](https://amazonappdev2026.devpost.com/forum_topics/45397-what-exactly-are-you-looking-for-in-the-alexa-track).
 
 The track connection is concrete: voice input and read-aloud make reports approachable, a companion screen adds visual context, and a standards-based tool surface lets an assistant client invoke the same report workflow. The prototype demonstrates these interactions through a browser simulator. A future approved Alexa+ host could use the MCP surface after its separate integration and authorization requirements are met.
 
@@ -71,7 +71,14 @@ These are evaluation pointers, not measured clinical outcomes or a prediction of
 
 ## Run locally
 
-Prerequisites: **Node.js 22.18+**, **Python 3.11+**, and a browser with WebGL 2. Start in the repository root and use two terminals.
+Prerequisites: **Node.js 22.18+**, **Python 3.11+**, and a browser with WebGL 2. Node 24 and Python 3.12 were used for verification. Start in the repository root and use two terminals.
+
+```sh
+git clone https://github.com/cavemansatyn-design/SehatSetu.git
+cd SehatSetu
+```
+
+The repository is private, so cloning requires an authorized GitHub account. Once the source is available, the local application itself requires no login. See the [reviewer-access check](docs/hackathon/REVIEWER_ACCESS.md).
 
 **Terminal 1 — backend and MCP server**
 
@@ -170,14 +177,28 @@ sequenceDiagram
 | `focus_anatomy` | Locate anatomy associated with an existing finding |
 | `prepare_questions` | Create English clinician-discussion prompts from report phrases |
 | `get_viewer_state` | Poll anatomy requests, connection count, and expiry |
-| `create_pairing` / `join_pairing` | Create and consume single-use invitations |
+| `create_pairing` | Issue an owner-controlled invitation valid for two minutes |
+| `join_pairing` | Consume that invitation and issue a separate companion capability |
 | `disconnect` | Delete a report, leave a session, or revoke companions |
 
 Transport: **MCP 2025-11-25, Streamable HTTP in JSON response mode**, official SDK pinned to `mcp==1.30.0`. Transport is stateless; bounded application sessions retain report/conversation state. External MCP clients can use the same tools. Demo access uses session capabilities in tool arguments, not production OAuth identity.
 
+The browser's real protocol sequence is:
+
+```text
+POST /mcp  initialize                     → protocolVersion: 2025-11-25
+POST /mcp  notifications/initialized      → accepted
+POST /mcp  tools/list                     → nine discoverable tools
+POST /mcp  tools/call: create_report      → selected report session
+POST /mcp  tools/call: ask_report         → answer + excerpts + anatomy intent
+POST /mcp  tools/call: get_viewer_state   → latest requested anatomy
+```
+
+Requests use JSON-RPC 2.0 and `Accept: application/json, text/event-stream`. See [protocol examples and all tool inputs](docs/hackathon/MCP_PROTOCOL.md). These are real calls to the SDK server, not a prerecorded transcript or a README-only MCP claim.
+
 Key files: [MCP server](backend/mcp_server.py), [FastAPI entry point](backend/main.py), [browser MCP client](app/report-mcp-client.ts), [companion UI](app/voice-companion.tsx), [atlas verification](app/medical-mapping.ts). See the [architecture review](docs/hackathon/TECHNICAL_REVIEW.md) for data boundaries, source-level evidence, tool inputs, and limitations. The [atlas technical guide](README-technical.md) preserves viewer internals and asset provenance.
 
-The current architecture runs in the browser and one Python backend process. It does not use Bedrock, Lambda, S3, DynamoDB, or a live Alexa endpoint. These services are not prerequisites for the track's simulated-experience route. Proposed Amazon deployment work is kept separate in the [future integration plan](docs/hackathon/TECHNICAL_REVIEW.md#future-amazon-integration-not-implemented).
+The current architecture runs in the browser and one Python backend process. Browser speech supplies the voice surface; Groq supplies optional AI inference. Any future approved Alexa+ host or AWS deployment is a separate integration, described in the [future integration plan](docs/hackathon/TECHNICAL_REVIEW.md#future-amazon-integration-not-implemented).
 
 ## Verification
 
@@ -186,7 +207,7 @@ With the Python environment active:
 ```sh
 python backend/test_backend.py
 python -m unittest backend.test_mcp -v
-python -m backend.smoke_mcp   # backend must be running on port 8000
+python -m backend.smoke_mcp --output outputs/mcp-verification.json
 npm run check
 npm run lint
 npm test
@@ -196,6 +217,10 @@ npm run test:companion
 ```
 
 The companion browser check starts its own backend on **8011** and frontend on **4318**. It checks sample loading, actual MCP calls, report answers, anatomy navigation, paired browsers, mobile layout, and revocation, with no paid inference. Set `PYTHON` if your virtual environment lives elsewhere.
+
+The independent SDK check needs the backend running on port 8000. It exercises all nine MCP tools, validates single-use pairing, checks shared anatomy requests and revocation, deletes its synthetic session, and optionally saves a JSON result without access keys.
+
+Latest local review: **125 project tests, seven MCP tests, four backend checks, the all-tools SDK check, and the paired-browser workflow passed**. TypeScript and lint passed. See [test evidence and boundaries](docs/hackathon/VERIFICATION.md).
 
 ## Prototype boundaries and data
 
@@ -212,16 +237,16 @@ The companion browser check starts its own backend on **8011** and frontend on *
 - [Documentation index](docs/hackathon/README.md)
 - [Five-minute judge's guide and expected results](docs/hackathon/JUDGE_GUIDE.md)
 - [Detailed architecture and implementation evidence](docs/hackathon/TECHNICAL_REVIEW.md)
+- [MCP protocol examples and tool reference](docs/hackathon/MCP_PROTOCOL.md)
+- [Reviewer-access audit](docs/hackathon/REVIEWER_ACCESS.md)
 - [Setup and demo troubleshooting](docs/hackathon/TROUBLESHOOTING.md)
 - [Short demo walkthrough](docs/hackathon/DEMO_WALKTHROUGH.md)
 - [Product feedback and observed friction](docs/hackathon/PRODUCT_FEEDBACK.md)
-- [Submission status, development history, and eligibility checks](docs/hackathon/SUBMISSION_STATUS.md)
+- [Submission-material review checklist](docs/hackathon/SUBMISSION_STATUS.md)
 - [Recorded verification and test boundaries](docs/hackathon/VERIFICATION.md)
 
-AWS Builder requires actual qualifying AWS/tool use during the event; this implementation uses Groq and makes no AWS Builder claim. Open Source requires a qualifying contribution, timing, and required URLs; the license alone does not establish eligibility. These documents do not establish eligibility for later work.
+Primary track: **Alexa+**. AWS Builder and Open Source are separate mini challenges with additional requirements; this review does not claim either from the current Groq-backed prototype or from the presence of a code license alone.
 
-## Credits and licenses
+## License and notices
 
-SehatSetu builds on [ashemag/human-atlas](https://github.com/ashemag/human-atlas), Anatolume, and the contributors detailed in the [technical guide](README-technical.md#credits). Their viewer and asset-pipeline work should not be presented as newly authored hackathon functionality.
-
-Application code: [MIT](LICENSE), retaining the original notice. BodyParts3D and HRA assets: CC BY 4.0. Z-Anatomy adaptations and combined catalogues: CC BY-SA 4.0. Preserve source attribution and applicable share-alike requirements. Full details: [asset attribution](public/ATTRIBUTION.md).
+Application code is distributed under [MIT](LICENSE), with its copyright and permission notice preserved. Anatomy data and meshes have separate CC BY 4.0 and CC BY-SA 4.0 terms described in [asset attribution](public/ATTRIBUTION.md). The code license does not replace those asset terms. Attribution and applicable share-alike notices remain with the distributed materials.

@@ -1,4 +1,4 @@
-> Preserved technical reference from before the October 25, 2026 companion/MCP work. For current setup, provider behavior, security limits, and hackathon version status, use the [main README](README.md). The current backend fallback returns report excerpts and does not provide the older stock explanations described below.
+> Detailed viewer reference. For current setup, companion/MCP behavior, provider modes, and security limits, use the [main README](README.md). The current backend fallback returns report excerpts and does not provide the older stock explanations described below.
 
 <div align="center">
 
