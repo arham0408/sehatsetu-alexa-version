@@ -228,7 +228,7 @@ test('both saved models reopen when the origin server is unavailable', async ({ 
     await ready(page);
     await page.locator('.model-option[title^="Female model"]').click();
     await ready(page);
-    await expect(page.locator('.identity-meta')).toContainText('2,456');
+    await expect(page.getByLabel('Atlas at a glance').getByText('2,456', { exact: true })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
   } finally {
     await context.close();

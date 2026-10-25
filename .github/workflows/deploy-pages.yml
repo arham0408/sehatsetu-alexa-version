@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Validate project and optionally deploy Pages
 
 on:
   push:
@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.pages_site.outputs.enabled }}
     permissions:
       contents: read
       pages: read
@@ -36,8 +38,35 @@ jobs:
         run: npm run lint
       - name: Validate atlas and interactions
         run: npm test
-      - name: Configure Pages
+      - name: Check whether GitHub Pages is configured
+        id: pages_site
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          status=$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/sehatsetu-pages.json" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pages")
+          case "$status" in
+            200)
+              echo 'enabled=true' >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo 'enabled=false' >> "$GITHUB_OUTPUT"
+              echo '::notice::GitHub Pages is not configured. Tests and build will run; Pages deployment will be skipped.'
+              echo 'GitHub Pages is not configured for this repository. Validation and build still run; Pages deployment is skipped.' >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::Could not check GitHub Pages configuration (HTTP $status)."
+              exit 1
+              ;;
+          esac
+      - name: Configure Pages
+        if: github.event_name != 'pull_request' && steps.pages_site.outputs.enabled == 'true'
         id: pages
         uses: actions/configure-pages@v6
       - name: Install Chromium for runtime checks
@@ -58,13 +87,13 @@ jobs:
           # Restore the deployment path after tests exercise the /ha/ subpath.
           BASE_PATH: ${{ steps.pages.outputs.base_path || (github.event_name == 'pull_request' && '/preview') || '' }}/
       - name: Upload site
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.pages_site.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.outputs.pages_enabled == 'true'
     needs: build
     runs-on: ubuntu-latest
     permissions:

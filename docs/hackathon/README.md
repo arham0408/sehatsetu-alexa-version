@@ -14,6 +14,7 @@ The local link works after starting the two services on your own computer. No pu
 | Start from a fresh checkout | [Local setup](../../README.md#run-locally) | Browser on 3016 and Python API/MCP on 8000 |
 | Inspect the implementation | [Architecture review](TECHNICAL_REVIEW.md) | Components, protocol flow, data boundaries, tool inputs, and source links |
 | Resolve setup/demo issues | [Troubleshooting](TROUBLESHOOTING.md) | Symptom-based fixes and readiness checks |
+| Understand GitHub checks and deployment | [CI and Pages](CI.md) | Mandatory validation with optional, automatically detected Pages deployment |
 | Review a short presentation | [Demo walkthrough](DEMO_WALKTHROUGH.md) | Suggested current-version sequence under three minutes |
 | Check test evidence | [Verification record](VERIFICATION.md) | Recorded results and what remains untested |
 | Review developer experience | [Product feedback](PRODUCT_FEEDBACK.md) | Tools actually used, observed friction, and feature requests |
