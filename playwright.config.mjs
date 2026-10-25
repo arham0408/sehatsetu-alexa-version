@@ -15,6 +15,10 @@ export default defineConfig({
     actionTimeout: ci ? 60_000 : 15_000,
     baseURL: 'http://127.0.0.1:4317/ha/',
     viewport: { width: 1280, height: 900 },
+    // CI rasterizes the full anatomy in software. Keep the same CSS viewport
+    // and interaction assertions, with fewer physical pixels so GPU work does
+    // not starve input processing. High-DPR caps have separate unit coverage.
+    deviceScaleFactor: ci ? 0.5 : 1,
     serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     // Keep CI focused on lifecycle assertions without rendering incidental transitions.

@@ -6,6 +6,8 @@ The October 25 run for commit `0b28faa` passed dependency installation, TypeScri
 
 The follow-up browser run also exposed retained GPU buffers after closing a located anatomy selection and stale test selectors from the older header layout. Dropped highlights now release their individual GPU buffers while keeping CPU geometry available for raycasting and later re-selection. The browser regression revisits the same organ to check that reuse still works. The offline test now uses the current About button and dashboard model-count label. No browser checks were removed.
 
+The Linux runner uses software rendering. Its browser context uses half-density physical pixels with the original CSS viewport dimensions, so full-atlas rasterization does not block click processing. Interaction, memory, buffer disposal, responsive layout, recovery, and offline assertions remain enabled; high-DPR pixel-cap behavior also has dedicated unit coverage. Browser CI stops on the first failure and reports GitHub annotations to make diagnostics available promptly.
+
 ## Current behavior
 
 1. Install dependencies, check types, lint, and run project tests.
