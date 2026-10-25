@@ -8,7 +8,7 @@ export default defineConfig({
   // Software rendering on hosted runners also affects each of the six model switches.
   timeout: ci ? 600_000 : 120_000,
   expect: { timeout: 30_000 },
-  reporter: 'list',
+  reporter: ci ? [['list'], ['github']] : 'list',
   workers: 1, // Each viewer owns a large model and WebGL context.
   forbidOnly: ci,
   use: {

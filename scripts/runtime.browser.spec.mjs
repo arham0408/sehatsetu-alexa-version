@@ -85,12 +85,12 @@ test('model switching releases old geometry and document listeners', async ({ pa
     expect(await page.evaluate(() => window.__renderAudit.contexts.filter(c => !c.lost).length)).toBe(1);
   }
   const first = samples[0], last = samples.at(-1);
+  await testInfo.attach('memory-samples', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' });
   // A lost scene retained ~174 MB per switch. Allow normal browser/UI warm-up,
   // but never another complete model in backing storage or the JavaScript heap.
   expect(last.backingStorageSize).toBeLessThan(first.backingStorageSize + 24_000_000);
   expect(last.usedSize).toBeLessThan(first.usedSize + 10_000_000);
   for (const entry of samples) expect(entry.keydownListeners).toBe(first.keydownListeners);
-  await testInfo.attach('memory-samples', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' });
   await assertIdle(page);
 });
 

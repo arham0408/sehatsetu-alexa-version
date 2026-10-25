@@ -73,7 +73,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Check viewer lifecycle and usability
         id: runtime
-        run: npm run test:browser -- --project=chromium
+        run: npm run test:browser -- --project=chromium --max-failures=1
       - name: Upload browser failure diagnostics
         if: failure() && steps.runtime.outcome == 'failure'
         uses: actions/upload-artifact@v7
